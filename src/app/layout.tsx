@@ -33,7 +33,6 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
-  // manifest: `${siteConfig.url}/site.webmanifest`,
   openGraph: {
     title: siteConfig.name,
     description: siteConfig.description,
@@ -41,36 +40,29 @@ export const metadata: Metadata = {
     url: siteConfig.url,
     type: "website",
     locale: "en_US",
-    // images: [
-    //   {
-    //     url: siteConfig.ogImage,
-    //     width: 1200,
-    //     height: 630,
-    //     alt: siteConfig.name,
-    //   },
-    // ],
   },
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
   twitter: {
     card: "summary_large_image",
     title: siteConfig.name,
     description: siteConfig.description,
-    // images: [`${siteConfig.url}/og.jpg`],
-    // creator: "@example",
   },
   metadataBase: new URL(siteConfig.url),
 };
 
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: dark)", color: "black" },
+  ],
+};
+
 export default function RootLayout({ authModal, children }: RootLayoutProps) {
   return (
-    <html lang="en" className="dark" style={{colorScheme: "dark"}}>
+    <html lang="en" className="dark">
       <head />
       <body
         className={cn(
-          "min-h-screen bg-background pt-12 antialiased",
+          "min-h-screen bg-background font-sans antialiased",
           inter.className,
         )}
       >

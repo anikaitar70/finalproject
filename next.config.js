@@ -6,17 +6,23 @@ await import("./src/env.js");
 
 /** @type {import("next").NextConfig} */
 const config = {
-  images: { 
-    domains: [
-      "avatars.githubusercontent.com",
-      "utfs.io",
-      "i.pravatar.cc"
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com'
+      },
+      {
+        protocol: 'https',
+        hostname: 'utfs.io'
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.pravatar.cc'
+      }
     ]
   },
-
-  /** We already do linting and typechecking as separate tasks in CI */
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
+  typescript: { ignoreBuildErrors: true }
 };
 
 export default config;
