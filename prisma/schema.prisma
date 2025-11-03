@@ -1,16 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema - final
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-  // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -20,7 +15,7 @@ model Example {
   updatedAt DateTime @updatedAt
 }
 
-// Necessary for NextAuth
+// NextAuth models
 model Account {
   id                       String  @id @default(cuid())
   userId                   String
@@ -67,15 +62,23 @@ model User {
 
   username String? @unique
 
+  // OnlyScholars credibility metrics
+  credibilityScore Float    @default(1.0)
+  credibilityRank  Int      @default(0)
+  lastScoreUpdate  DateTime @default(now())
+  expertise        String   @default("")
+
   createdSubreddits Subreddit[]    @relation("CreatedBy")
   subscriptions     Subscription[]
   posts             Post[]
   votes             Vote[]
   comments          Comment[]
   commentVotes      CommentVote[]
+
+  @@index([credibilityScore])
+  @@index([credibilityRank])
 }
 
-// My Models
 enum VoteType {
   UP
   DOWN
@@ -112,13 +115,21 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Research metrics
+  credibilityScore Float @default(0.0)
+  citationCount     Int    @default(0)
+
   author      User      @relation(fields: [authorId], references: [id])
   authorId    String
   subreddit   Subreddit @relation(fields: [subredditId], references: [id])
   subredditId String
 
-  comments Comment[]
-  votes    Vote[]
+  comments       Comment[]
+  votes          Vote[]
+  researchDomain String?
+
+  @@index([credibilityScore])
+  @@index([researchDomain])
 }
 
 model Comment {
@@ -146,7 +157,13 @@ model Vote {
   postId String
   type   VoteType
 
+  // OnlyScholars vote weighting
+  weight           Float    @default(1.0)
+  votedAt          DateTime @default(now())
+  lastWeightUpdate DateTime @default(now())
+
   @@id([userId, postId])
+  @@index([weight])
 }
 
 model CommentVote {

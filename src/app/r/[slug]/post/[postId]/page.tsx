@@ -57,6 +57,29 @@ export default async function PostDetailPage({
         votes: true,
         author: true,
       },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        createdAt: true,
+        updatedAt: true,
+        authorId: true,
+        subredditId: true,
+        credibilityScore: true,
+        researchDomain: true,
+        citationCount: true,
+        lastConsensusUpdate: true,
+        votes: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            image: true,
+            credibilityScore: true
+          }
+        }
+      }
     });
   }
 
@@ -67,7 +90,9 @@ export default async function PostDetailPage({
       where: {
         id: postId,
       },
-      include: {
+      select: {
+        id: true,
+        credibilityScore: true,
         votes: true,
       },
     });

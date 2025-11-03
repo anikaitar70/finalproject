@@ -7,4 +7,8 @@ export type CachedPost = {
   authorUsername: string;
   currentVote: VoteType | null;
   createdAt: Date;
+  credibilityScore: number;
+  researchDomain: string | null;
+  citationCount: number;
+  lastConsensusUpdate: Date;
 };

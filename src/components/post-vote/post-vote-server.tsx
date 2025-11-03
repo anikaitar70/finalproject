@@ -6,7 +6,7 @@ import { getServerAuthSession } from "~/server/auth";
 
 interface PostVoteServerProps {
   postId: string;
-  initialVoteCount?: number;
+  initialCredibility?: number;
   initialVote?: Vote["type"] | null;
   getData?: () => Promise<(Post & { votes: Vote[] }) | null>;
 }
@@ -15,11 +15,11 @@ export async function PostVoteServer({
   getData,
   postId,
   initialVote,
-  initialVoteCount,
+  initialCredibility,
 }: PostVoteServerProps) {
   const session = await getServerAuthSession();
 
-  let voteCount = 0;
+  let credibilityScore = 0;
   let currentVote: Vote["type"] | null | undefined = undefined;
 
   if (getData) {
@@ -27,11 +27,7 @@ export async function PostVoteServer({
     const post = await getData();
     if (!post) return notFound();
 
-    voteCount = post.votes.reduce((acc, vote) => {
-      if (vote.type === "UP") return acc + 1;
-      if (vote.type === "DOWN") return acc - 1;
-      return acc;
-    }, 0);
+    credibilityScore = post.credibilityScore;
 
     currentVote = post.votes.find(
       (vote) => vote.userId === session?.user?.id,
@@ -39,7 +35,7 @@ export async function PostVoteServer({
   } else {
     // Passed as props if we already have the data, otherwise
     // the `getData` function is passed and invoked above
-    voteCount = initialVoteCount!;
+    credibilityScore = initialCredibility ?? 0;
     currentVote = initialVote;
   }
 
@@ -47,7 +43,7 @@ export async function PostVoteServer({
     <PostVoteClient
       postId={postId}
       initialVote={currentVote}
-      initialVoteCount={voteCount}
+      initialCredibility={credibilityScore}
     />
   );
 }

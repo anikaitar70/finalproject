@@ -1,8 +1,32 @@
-import type { Comment, Post, Subreddit, User, Vote } from "@prisma/client";
+import type { Comment, Post, Subreddit, User, Vote, VoteType } from "@prisma/client";
 
-export type ExtendedPost = Post & {
-  author: User;
-  comments: Comment[];
+export type ExtendedUser = Pick<User, 'id' | 'name' | 'username' | 'image' | 'email' | 'emailVerified' | 'credibilityScore'>;
+
+export type ExtendedVote = {
+  type: VoteType;
+  userId: string;
+  postId: string;
+  weight: number;
+  votedAt: Date;
+  lastWeightUpdate: Date;
+};
+
+export type ExtendedComment = Pick<Comment, 'id' | 'text' | 'createdAt' | 'authorId'>;
+
+export type ExtendedPost = {
+  id: string;
+  title: string;
+  content: any;
+  createdAt: Date;
+  updatedAt: Date;
+  authorId: string;
+  subredditId: string;
+  credibilityScore: number;
+  citationCount: number;
+  researchDomain: string | null;
+  lastConsensusUpdate: Date;
+  author: ExtendedUser;
+  comments: ExtendedComment[];
   subreddit: Subreddit;
-  votes: Vote[];
+  votes: ExtendedVote[];
 };

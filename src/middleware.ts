@@ -7,9 +7,16 @@ export async function middleware(req: NextRequest) {
   if (!token) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
+
+  // Protect admin routes
+  if (req.nextUrl.pathname.startsWith("/admin")) {
+    if (token.email !== "anikaitar@gmail.com") {
+      return NextResponse.redirect(new URL("/", req.nextUrl));
+    }
+  }
 }
 
 // See "Matching Paths" below to learn more
 export const config = {
-  matcher: ["/r/:path*/submit", "/r/create"],
+  matcher: ["/r/:path*/submit", "/r/create", "/admin/:path*"],
 };

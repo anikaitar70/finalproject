@@ -6,7 +6,13 @@ await import("./src/env.js");
 
 /** @type {import("next").NextConfig} */
 const config = {
-  images: { domains: ["avatars.githubusercontent.com", "utfs.io"] },
+  images: { 
+    domains: [
+      "avatars.githubusercontent.com",
+      "utfs.io",
+      "i.pravatar.cc"
+    ]
+  },
 
   /** We already do linting and typechecking as separate tasks in CI */
   eslint: { ignoreDuringBuilds: true },

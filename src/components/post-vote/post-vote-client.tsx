@@ -15,35 +15,56 @@ import { type PostVoteRequest } from "~/lib/validators/vote";
 
 interface PostVoteClientProps {
   postId: string;
-  initialVoteCount: number;
+  initialCredibility: number;
   initialVote?: VoteType | null;
 }
 
 export function PostVoteClient({
   postId,
-  initialVoteCount,
+  initialCredibility,
   initialVote,
 }: PostVoteClientProps) {
-  const [voteCount, setVoteCount] = useState<number>(initialVoteCount);
-  const [currentVote, setCurrentVote] = useState(initialVote);
+  // Use null for initial client state to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false);
+  const [credibility, setCredibility] = useState<number | null>(null);
+  const [currentVote, setCurrentVote] = useState<typeof initialVote | null>(null);
   const prevVote = usePrevious(currentVote);
   const { loginToast } = useCustomToasts();
 
-  // Ensure client component is in sync with server after `initialVote` is populated
+  // After mount, set the actual initial values
   useEffect(() => {
+    setMounted(true);
+    setCredibility(initialCredibility);
     setCurrentVote(initialVote);
-  }, [initialVote]);
+  }, [initialCredibility, initialVote]);
 
   const { mutate: vote } = useMutation({
     mutationFn: async (voteType: VoteType) => {
       const payload: PostVoteRequest = { postId, voteType };
 
-      await axios.patch("/api/subreddit/post/vote", payload);
+      const { data } = await axios.patch("/api/subreddit/post/vote", payload);
+      return data;
+    },
+
+    onSuccess: (data) => {
+      // Dispatch a window event so other components (post, profile) can update in real-time
+      try {
+        const ev = new CustomEvent("credibility:update", { detail: data });
+        window.dispatchEvent(ev);
+      } catch (e) {
+        // ignore in non-browser environments
+      }
+
+      // Show toast with vote weight and post score
+      toast({
+        title: "Vote registered",
+        description: `Weight: ${data.voteWeight.toFixed(2)}x — Post score: ${data.postScore.toFixed(2)}`,
+      });
     },
 
     onError: (err, voteType) => {
-      if (voteType === "UP") setVoteCount((prev) => prev - 1);
-      else setVoteCount((prev) => prev + 1);
+      if (voteType === "UP") setCredibility((prev) => (prev ?? 0) - 0.1);
+      else setCredibility((prev) => (prev ?? 0) + 0.1);
 
       // reset current vote
       setCurrentVote(prevVote);
@@ -65,15 +86,15 @@ export function PostVoteClient({
       if (currentVote === voteType) {
         // User is voting the same way again, so remove their vote
         setCurrentVote(undefined);
-        if (voteType === "UP") setVoteCount((prev) => prev - 1);
-        else if (voteType === "DOWN") setVoteCount((prev) => prev + 1);
+        if (voteType === "UP") setCredibility((prev) => (prev ?? 0) - 0.1);
+        else if (voteType === "DOWN") setCredibility((prev) => (prev ?? 0) + 0.1);
       } else {
-        // User is voting in the opposite direction, so subtract 2
+        // User is voting in the opposite direction
         setCurrentVote(voteType);
         if (voteType === "UP")
-          setVoteCount((prev) => prev + (currentVote ? 2 : 1));
+          setCredibility((prev) => (prev ?? 0) + (currentVote ? 0.2 : 0.1));
         else if (voteType === "DOWN")
-          setVoteCount((prev) => prev - (currentVote ? 2 : 1));
+          setCredibility((prev) => (prev ?? 0) - (currentVote ? 0.2 : 0.1));
       }
     },
   });
@@ -94,9 +115,9 @@ export function PostVoteClient({
         />
       </Button>
 
-      {/* Votes */}
-      <p className="py-2 text-center text-sm font-medium text-secondary-foreground">
-        {voteCount}
+      {/* Credibility Score */}
+      <p className="py-2 text-center text-sm font-medium text-secondary-foreground" title="Credibility Score">
+        {mounted ? credibility?.toFixed(1) : initialCredibility.toFixed(1)}
       </p>
 
       {/* Downvote */}

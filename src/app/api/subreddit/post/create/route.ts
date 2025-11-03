@@ -34,12 +34,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get author's credibility score
+    const author = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { credibilityScore: true }
+    });
+
+    // Initialize post with author's credibility as starting point
     await prisma.post.create({
       data: {
         authorId: session.user.id,
         content,
         subredditId,
         title,
+        credibilityScore: author?.credibilityScore ?? 1.0,
+        citationCount: 0,
+        lastConsensusUpdate: new Date()
       },
     });
 

@@ -66,7 +66,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ authModal, children }: RootLayoutProps) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" style={{colorScheme: "dark"}}>
       <head />
       <body
         className={cn(

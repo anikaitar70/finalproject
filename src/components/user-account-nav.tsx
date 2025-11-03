@@ -67,6 +67,15 @@ export function UserAccountNav({ user }: UserAccountNavProps) {
               <span>Settings</span>
             </Link>
           </DropdownMenuItem>
+
+          {user.email === "anikaitar@gmail.com" && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <Icons.settings className="mr-2 h-4 w-4" />
+                <span>Admin Dashboard</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />

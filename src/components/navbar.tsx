@@ -16,7 +16,7 @@ export async function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <Icons.logo className="h-8 w-8 sm:h-6 sm:w-6" />
-          <span className="hidden text-sm font-medium md:block">Shreddit</span>
+          <span className="hidden text-sm font-medium md:block">CredRankNet</span>
         </Link>
 
         {/* Search Bar */}

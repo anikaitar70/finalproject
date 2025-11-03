@@ -57,19 +57,60 @@ export async function GET(req: NextRequest) {
       };
     }
 
+    // Get distinct posts with all needed relations
     const posts = await prisma.post.findMany({
       take: parseInt(limit),
-      skip: (parseInt(page) - 1) * parseInt(limit), // Skip should start from 0 for page 1
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
+      skip: (parseInt(page) - 1) * parseInt(limit),
+      orderBy: [{
+        credibilityScore: 'desc'
+      }, {
+        createdAt: 'desc'
+      }],
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        createdAt: true,
+        updatedAt: true,
+        authorId: true,
+        subredditId: true,
+        credibilityScore: true,
+        researchDomain: true,
+        citationCount: true,
+        lastConsensusUpdate: true,
         subreddit: true,
-        votes: true,
-        author: true,
-        comments: true,
+        votes: {
+          select: {
+            type: true,
+            userId: true,
+            postId: true,
+            weight: true,
+            votedAt: true,
+            lastWeightUpdate: true,
+          }
+        },
+        author: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            image: true,
+            email: true,
+            emailVerified: true,
+            credibilityScore: true,
+          }
+        },
+        comments: {
+          select: {
+            id: true,
+            text: true,
+            createdAt: true,
+            authorId: true,
+          }
+        }
       },
       where: whereClause,
+      distinct: ['id']
     });
 
     return new Response(JSON.stringify(posts));
