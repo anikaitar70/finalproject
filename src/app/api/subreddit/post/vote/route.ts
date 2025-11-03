@@ -132,7 +132,6 @@ export async function PATCH(req: NextRequest) {
         where: { id: postId },
         data: {
           credibilityScore: newPostScore,
-          lastConsensusUpdate: new Date(),
         },
       });
 

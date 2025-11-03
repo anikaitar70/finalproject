@@ -3,7 +3,7 @@ import { withUt } from "uploadthing/tw";
 
 export default withUt({
   darkMode: ["class"],
-  content: ["./src/**/*.{js,ts,jsx,tsx}"],
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     container: {
       center: true,

@@ -44,12 +44,12 @@ export function Post({
           <div className="mt-1 max-h-40 text-xs text-muted-foreground">
             {subredditName ? (
               <>
-                <a
+                <Link
                   className="text-sm text-secondary-foreground underline underline-offset-2"
                   href={`/r/${subredditName}`}
                 >
                   r/{subredditName}
-                </a>
+                </Link>
                 <span className="px-1">•</span>
               </>
             ) : null}
@@ -66,11 +66,11 @@ export function Post({
             )}
           </div>
 
-          <a href={`/r/${subredditName}/post/${localPost.id}`}>
+          <Link href={`/r/${subredditName}/post/${localPost.id}`}>
             <h1 className="py-2 text-lg font-semibold leading-6 text-secondary-foreground">
               {localPost.title}
             </h1>
-          </a>
+          </Link>
 
           <div
             className="relative max-h-40 w-full overflow-clip text-sm"

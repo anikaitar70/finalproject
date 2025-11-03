@@ -2,10 +2,11 @@ import { type Post } from "@prisma/client";
 import { Award, BookOpen, Quote } from "lucide-react";
 
 interface PostCredibilityProps {
-  post: Post & {
+  post: Partial<Post> & {
+    id: string;
     credibilityScore: number;
     researchDomain?: string | null;
-    citationCount?: number;
+    citationCount?: number | undefined;
   };
 }
 

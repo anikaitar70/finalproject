@@ -10,11 +10,19 @@ interface SubredditPageProps {
 }
 
 export default async function SubredditPage({ params }: SubredditPageProps) {
-  const { slug } = params;
+  // Await the params and get the slug
+  const resolvedParams = await Promise.resolve(params);
+  const rawSlug = resolvedParams?.slug;
+  
+  if (!rawSlug || rawSlug === 'undefined' || typeof rawSlug !== 'string') {
+    return notFound();
+  }
+  
+  const slug = decodeURIComponent(rawSlug);
 
   const session = await getServerAuthSession();
 
-  const subreddit = await prisma.subreddit.findFirst({
+  const subreddit = await prisma.subreddit.findUnique({
     where: { name: slug },
     include: {
       posts: {

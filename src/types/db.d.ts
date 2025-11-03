@@ -22,9 +22,7 @@ export type ExtendedPost = {
   authorId: string;
   subredditId: string;
   credibilityScore: number;
-  citationCount: number;
   researchDomain: string | null;
-  lastConsensusUpdate: Date;
   author: ExtendedUser;
   comments: ExtendedComment[];
   subreddit: Subreddit;

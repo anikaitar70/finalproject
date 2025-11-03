@@ -14,10 +14,20 @@ interface LayoutProps {
 
 export default async function Layout(props: LayoutProps) {
   const { children } = props;
-  const { slug } = await props.params;
+  
+  // Await the params and get the slug
+  const params = await Promise.resolve(props.params);
+  const rawSlug = params?.slug;
+  
+  if (!rawSlug || rawSlug === 'undefined' || typeof rawSlug !== 'string') {
+    return notFound();
+  }
+  
+  const slug = decodeURIComponent(rawSlug);
+
   const session = await getServerAuthSession();
 
-  const subreddit = await prisma.subreddit.findFirst({
+  const subreddit = await prisma.subreddit.findUnique({
     where: { name: slug },
     include: {
       posts: {
@@ -70,7 +80,7 @@ export default async function Layout(props: LayoutProps) {
               </p>
             </div>
 
-            <dl className="divide-y divide-secondary px-6 py-4 text-sm leading-6">
+            <dl className="divide-y divide-secondary space-y-3 px-6 py-4 text-sm leading-6">
               <div className="flex justify-between gap-x-4 py-3">
                 <dt>Created</dt>
                 <dd>
@@ -83,34 +93,45 @@ export default async function Layout(props: LayoutProps) {
               <div className="flex justify-between gap-x-4 py-3">
                 <dt>Members</dt>
                 <dd className="flex items-start gap-x-2">
-                  <div>{memberCount}</div>
+                  {memberCount}
                 </dd>
               </div>
 
-              {subreddit.creatorId === session?.user?.id ? (
+              {subreddit.creatorId === session?.user?.id && (
                 <div className="flex justify-between gap-x-4 py-3">
                   <dt>You created this community</dt>
+                  <dd></dd>
                 </div>
-              ) : null}
+              )}
 
-              {subreddit.creatorId !== session?.user?.id ? (
-                <JoinLeaveToggle
-                  isSubscribed={isSubscribed}
-                  subredditId={subreddit.id}
-                  subredditName={subreddit.name}
-                />
-              ) : null}
+              {subreddit.creatorId !== session?.user?.id && (
+                <div className="py-3">
+                  <dt className="sr-only">Community Actions</dt>
+                  <dd>
+                    <JoinLeaveToggle
+                      isSubscribed={isSubscribed}
+                      subredditId={subreddit.id}
+                      subredditName={subreddit.name}
+                    />
+                  </dd>
+                </div>
+              )}
 
-              <Link
-                href={`${slug}/submit`}
-                className={buttonVariants({
-                  variant: "secondary",
-                  className:
-                    "mb-8 w-full text-secondary-foreground hover:backdrop-brightness-100",
-                })}
-              >
-                Create Post
-              </Link>
+              <div className="py-3">
+                <dt className="sr-only">Post Actions</dt>
+                <dd>
+                  <Link
+                    href={`${slug}/submit`}
+                    className={buttonVariants({
+                      variant: "secondary",
+                      className:
+                        "w-full text-secondary-foreground hover:backdrop-brightness-100",
+                    })}
+                  >
+                    Create Post
+                  </Link>
+                </dd>
+              </div>
             </dl>
           </div>
         </div>
