@@ -53,10 +53,6 @@ export default async function PostDetailPage({
       where: {
         id: postId,
       },
-      include: {
-        votes: true,
-        author: true,
-      },
       select: {
         id: true,
         title: true,
@@ -67,9 +63,16 @@ export default async function PostDetailPage({
         subredditId: true,
         credibilityScore: true,
         researchDomain: true,
-        citationCount: true,
-        lastConsensusUpdate: true,
-        votes: true,
+        votes: {
+          select: {
+            type: true,
+            userId: true,
+            postId: true,
+            weight: true,
+            votedAt: true,
+            lastWeightUpdate: true,
+          }
+        },
         author: {
           select: {
             id: true,
@@ -86,16 +89,25 @@ export default async function PostDetailPage({
   if (!post && !cachedPost) return notFound();
 
   const getData = async () => {
-    return await prisma.post.findUnique({
+    const result = await prisma.post.findUnique({
       where: {
-        id: postId,
+        id: post?.id ?? cachedPost.id,  // Use the same ID source as we use in the JSX
       },
       select: {
         id: true,
         credibilityScore: true,
-        votes: true,
+        votes: {
+          select: {
+            type: true,
+            userId: true,
+            weight: true,
+          }
+        },
       },
     });
+    
+    if (!result) return null;
+    return result;
   };
 
   return (

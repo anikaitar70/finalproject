@@ -117,7 +117,6 @@ model Post {
 
   // Research metrics
   credibilityScore Float @default(0.0)
-  citationCount     Int    @default(0)
 
   author      User      @relation(fields: [authorId], references: [id])
   authorId    String
@@ -131,6 +130,7 @@ model Post {
   @@index([credibilityScore])
   @@index([researchDomain])
 }
+
 
 model Comment {
   id        String   @id @default(cuid())

@@ -96,7 +96,7 @@
     "initVersion": "7.14.1"
   },
   "prisma": {
-    "seed": "tsx prisma/seed-credibility.ts"
+    "seed": "tsx prisma/seed-full.ts"
   },
   "packageManager": "pnpm@9.15.0"
 }

@@ -74,10 +74,8 @@ export async function GET(req: NextRequest) {
         updatedAt: true,
         authorId: true,
         subredditId: true,
-        credibilityScore: true,
-        researchDomain: true,
-        citationCount: true,
-        lastConsensusUpdate: true,
+  credibilityScore: true,
+  researchDomain: true,
         subreddit: true,
         votes: {
           select: {

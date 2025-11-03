@@ -21,7 +21,7 @@ interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export const metadata: Metadata = {
+export const viewport: Metadata = {
   title: {
     default: siteConfig.name,
     template: `%s | ${siteConfig.name}`,

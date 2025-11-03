@@ -69,7 +69,7 @@ export function PostFeed({ initialPosts, subredditName }: PostFeedProps) {
       {posts.map((post, index) => {
         const voteCount = getInitialVoteCount(post.votes);
         const rawCurrentVote = post.votes.find(
-          (vote) => vote.userId === (session as any)?.user?.id
+          (vote) => vote.userId === session?.user?.id
         );
         const currentVote = rawCurrentVote
           ? { type: rawCurrentVote.type, weight: rawCurrentVote.weight }
@@ -77,8 +77,21 @@ export function PostFeed({ initialPosts, subredditName }: PostFeedProps) {
 
         const isLast = index === posts.length - 1;
 
+        if (!isClient) {
+          return (
+            <div key={post.id}>
+              <Post
+                post={post}
+                commentCount={post.comments.length}
+                subredditName={post.subreddit.name}
+                currentVote={currentVote}
+              />
+            </div>
+          );
+        }
+
         return (
-          <div key={post.id} ref={isLast && isClient ? ref : null}>
+          <div key={post.id} ref={isLast ? ref : undefined}>
             <Post
               post={post}
               commentCount={post.comments.length}

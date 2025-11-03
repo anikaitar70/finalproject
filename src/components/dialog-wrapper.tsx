@@ -2,18 +2,22 @@
 
 import { useRouter } from "next/navigation";
 
-import { Dialog, DialogContent } from "~/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 
 interface DialogWrapperProps {
   children: React.ReactNode;
+  title?: string;
 }
 
-export function DialogWrapper({ children }: DialogWrapperProps) {
+export function DialogWrapper({ children, title }: DialogWrapperProps) {
   const router = useRouter();
 
   return (
     <Dialog defaultOpen onOpenChange={() => router.back()}>
-      <DialogContent>{children}</DialogContent>
+      <DialogContent>
+        <DialogTitle className="sr-only">{title ?? "Authentication"}</DialogTitle>
+        {children}
+      </DialogContent>
     </Dialog>
   );
 }

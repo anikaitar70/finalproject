@@ -66,8 +66,14 @@ export const authOptions: NextAuthOptions = {
         },
       });
 
+      // If there's no DB user yet, the `user` object will only be
+      // present immediately after sign in. Guard against `user` being
+      // undefined in subsequent JWT callbacks to avoid reading
+      // properties from undefined (which caused the runtime error).
       if (!dbUser) {
-        token.id = user.id;
+        if (user) { 
+          token.id = user.id;
+        }
         return token;
       }
 

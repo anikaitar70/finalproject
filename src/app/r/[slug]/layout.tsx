@@ -12,10 +12,9 @@ interface LayoutProps {
   params: { slug: string };
 }
 
-export default async function Layout({
-  children,
-  params: { slug },
-}: LayoutProps) {
+export default async function Layout(props: LayoutProps) {
+  const { children } = props;
+  const { slug } = await props.params;
   const session = await getServerAuthSession();
 
   const subreddit = await prisma.subreddit.findFirst({
