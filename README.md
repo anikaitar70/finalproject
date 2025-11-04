@@ -1,96 +1,133 @@
-# Shreddit
+# OnlyScholars
 
-> Modern fullstack Reddit clone, built with Next.js & Tailwind and deployed on Vercel.
+> A credibility-based research sharing platform that combines academic rigor with social engagement.
 
 ## Table of Contents
 
-- [Technologies Used](#technologies-used)
-- [Features](#features)
-- [Meta-Features](#meta-features)
-- [Quickstart](#quickstart)
-- [Project Status](#project-status)
+- [Core Features](#core-features)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-## Technologies Used
+## Core Features
 
-- React 18
-- Next.js 13
-- NextAuth.js
-- Prisma
-- Shadcn UI
-- Tailwind CSS
-- TypeScript
-- UploadThing
+### Research Platform Features
+- **Credibility Scoring System**
+  - Dynamic user reputation scoring
+  - Weighted voting based on expertise
+  - Research domain validation
+- **Content Management**
+  - Rich text editor with markdown support
+  - Infinite scroll feed with real-time updates
+  - Subreddit-style research communities
+  - Nested comment discussions
+- **Academic Integration**
+  - Research domain tagging
+  - Citation metrics
+  - Expert verification system
+  - Academic credential validation
 
-## Features
+### Technical Features
+- **Modern Web Architecture**
+  - Server-side rendering with Next.js 13+
+  - Real-time updates via React Query
+  - Type-safe development with TypeScript
+  - Responsive design with Tailwind CSS
+- **User Experience**
+  - Dark/Light mode support
+  - Infinite scrolling
+  - Real-time credibility updates
+  - Optimistic UI updates
+- **Performance**
+  - Server-side rendering
+  - Efficient data caching
+  - Optimized image loading
+  - Minimal bundle size
 
-- Infinite scrolling for loading posts dynamically
-- A beautiful and highly functional post editor
-- Beautiful UI powered by Shadcn UI
-- Light and Dark modes
-- Authentication using NextAuth & GitHub
-- Custom feed for authenticated users
-- Image uploads (with UploadThing) & link previews
-- Full comment functionality with nested replies
-- ... and much more
+## Technology Stack
 
-## Meta-Features
+### Frontend
+- Next.js 13+ with App Router
+- TypeScript for type safety
+- Tailwind CSS for styling
+- Shadcn/UI components
+- EditorJS for rich text
+- React Query for data management
 
-- Next.js `/app` dir
-- React Client and Server Components
-- Metadata configuration for improved SEO and web shareability
-- Data fetching and mutation with React Query
-- Graceful loading states and optimistic updates for a great UX
-- Advanced caching with Upstash Redis
-- Schema declarations and validations with Zod
-- Typesafe code and best practices made possible by TypeScript, ESLint and Prettier
-- Automated `format`, `lint` and `typecheck` CI steps with GitHub Actions
-- ... and much more
+### Backend
+- Next.js API Routes
+- Prisma ORM with SQLite
+- NextAuth for authentication
+- Role-based access control
+- Real-time event system
 
-## Quickstart
+### Development Tools
+- pnpm package manager
+- ESLint & Prettier
+- GitHub Actions CI/CD
+- Zod for validation
 
-To run it locally, follow the steps below:
+## Getting Started
 
-1. Clone repository and install the dependencies:
-
+1. Clone and install:
    ```bash
-   # Clone repository
-   git clone git@github.com:peterkibuchi/shreddit.git
-
-   # Install dependencies
-   pnpm i
+   git clone https://github.com/yourusername/onlyscholars.git
+   cd onlyscholars
+   pnpm install
    ```
 
-2. Copy `.env.example` to `.env` and update the variables.
-
+2. Configure environment:
    ```bash
-   cp .env.example .env
+   cp .env.example .env.local
+   # Update environment variables
    ```
 
-3. Sync the Prisma schema with your database
-
+3. Initialize database:
    ```bash
+   pnpm prisma generate
    pnpm prisma db push
    ```
 
-4. Start the development server:
-
+4. Start development:
    ```bash
    pnpm dev
    ```
 
-## Project Status
+## Project Structure
 
-Project is: _complete_.
+```
+src/
+├── app/             # Next.js pages & API routes
+├── components/      # React components
+├── lib/            # Utilities & helpers
+├── server/         # Server-side logic
+├── styles/         # Global styles
+└── types/          # TypeScript types
+prisma/
+└── schema.prisma   # Database schema
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
 
 ## Acknowledgements
 
-- This is a [T3 Stack](https://create.t3.gg) project bootstrapped with `create-t3-app`.
-- Many thanks to [Josh](https://www.youtube.com/@joshtriedcoding) for inspiring this project.
+- Built on the foundation of modern web technologies
+- Inspired by academic publishing platforms
+- Thanks to the open source community
 
 ## License
 
-This project is open source and available under the [MIT License](./LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-# finalproject
+---
+
+Built with ❤️ for advancing research collaboration
