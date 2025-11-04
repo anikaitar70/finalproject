@@ -20,14 +20,15 @@ export async function CustomFeed() {
     },
   });
 
+  // If user has no subscriptions, show all posts instead
   const posts = await prisma.post.findMany({
-    where: {
+    where: followedCommunities.length > 0 ? {
       subreddit: {
         name: {
           in: followedCommunities.map(({ subreddit }) => subreddit.name),
         },
       },
-    },
+    } : {},
     orderBy: {
       createdAt: "desc",
     },
@@ -40,5 +41,5 @@ export async function CustomFeed() {
     take: INFINITE_SCROLL_PAGINATION_RESULTS,
   });
 
-  return <PostFeed initialPosts={posts} />;
+  return <PostFeed initialPosts={posts} feedType="custom" />;
 }

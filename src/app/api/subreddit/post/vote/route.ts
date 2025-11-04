@@ -34,35 +34,43 @@ export async function PATCH(req: NextRequest) {
 
     // Start a transaction for atomic credibility updates
     const result = await prisma.$transaction(async (tx) => {
-      // Get current voter credibility
-      const voter = await tx.user.findUnique({
-        where: { id: session.user.id },
-        select: { credibilityScore: true }
-      });
+      // Get all necessary data upfront
+      const [voter, post, existingVote] = await Promise.all([
+        tx.user.findUnique({
+          where: { id: session.user.id },
+          select: { credibilityScore: true }
+        }),
+        tx.post.findUnique({
+          where: { id: postId },
+          include: {
+            votes: true,
+            author: {
+              select: {
+                id: true,
+                credibilityScore: true
+              }
+            }
+          }
+        }),
+        tx.vote.findUnique({
+          where: {
+            userId_postId: {
+              userId: session.user.id,
+              postId
+            }
+          }
+        })
+      ]);
 
       if (!voter) {
         throw new Error("Voter not found");
       }
+      if (!post) {
+        throw new Error("Post not found");
+      }
 
-      // Compute vote weight based on voter credibility
-      const voteWeight = computeVoteWeight(voter.credibilityScore);
-
-      // Get existing vote
-      const existingVote = await tx.vote.findFirst({
-        where: {
-          userId: session.user.id,
-          postId,
-        },
-      });
-
-      // Get post with author and votes
-      const post = await tx.post.findUnique({
-        where: { id: postId },
-        include: {
-          author: true,
-          votes: true,
-        },
-      });
+      // Compute vote weight based on voter credibility and post score
+      const voteWeight = computeVoteWeight(voter.credibilityScore, post.credibilityScore);
 
       if (!post) {
         throw new Error("Post not found");
@@ -110,29 +118,40 @@ export async function PATCH(req: NextRequest) {
         });
       }
 
-      // Recompute post consensus and update scores
-      const updatedPost = await tx.post.findUnique({
-        where: { id: postId },
-        include: { votes: true },
-      });
-
-      if (!updatedPost) {
-        throw new Error("Updated post not found");
+      // Calculate new scores
+      let newPostScore = post.credibilityScore;
+      
+      if (existingVote?.type === voteType) {
+        // Removing vote - reverse the previous vote's effect
+        const reverseDirection = voteType === "UP" ? "DOWN" : "UP";
+        newPostScore = updatePostCredibility(
+          post.credibilityScore,
+          reverseDirection,
+          existingVote.weight
+        );
+      } else {
+        // New vote or changing vote direction
+        newPostScore = updatePostCredibility(
+          post.credibilityScore,
+          voteType,
+          voteWeight
+        );
       }
-
-      const postConsensus = computePostConsensus(updatedPost.votes);
-      const newPostScore = updatePostCredibility(
-        post.credibilityScore,
-        voteType,
-        voteWeight
+      
+      // Recalculate consensus after vote changes
+      const postConsensus = computePostConsensus(
+        post.votes.filter(v => v.userId !== session.user.id) // Remove existing vote if any
       );
 
       // Update post credibility
-      await tx.post.update({
+      const updatedPost = await tx.post.update({
         where: { id: postId },
         data: {
           credibilityScore: newPostScore,
         },
+        include: {
+          votes: true,
+        }
       });
 
       // Update author credibility based on post consensus
@@ -142,7 +161,7 @@ export async function PATCH(req: NextRequest) {
       );
 
       await tx.user.update({
-        where: { id: post.authorId },
+        where: { id: post.author.id },
         data: {
           credibilityScore: newAuthorScore,
           lastScoreUpdate: new Date(),
@@ -210,7 +229,10 @@ export async function PATCH(req: NextRequest) {
           credibilityScore: result.postScore,
         };
 
-        await redis.hset(`post:${postId}`, cachePayload);
+        await redis.hset(`post:${postId}`, Object.entries(cachePayload).reduce((acc, [key, value]) => {
+          acc[key] = typeof value === 'string' ? value : JSON.stringify(value);
+          return acc;
+        }, {} as Record<string, string>));
       }
     }
 

@@ -4,9 +4,17 @@ export const BETA = 0.05; // Learning rate for author credibility updates
 export const MIN_CREDIBILITY = 0.1;
 export const MAX_CREDIBILITY = 100.0;
 
-export function computeVoteWeight(voterCredibility: number): number {
-  // Δpost = α * direction * log(1 + voterCred)
-  return Math.log(1 + Math.max(MIN_CREDIBILITY, voterCredibility));
+export function computeVoteWeight(voterCredibility: number, postScore: number = 1.0): number {
+  // Base weight from voter credibility
+  const baseWeight = Math.log(1 + Math.max(MIN_CREDIBILITY, voterCredibility));
+  
+  // Scale based on post score to add more weight to votes on higher quality posts
+  const postFactor = Math.log(1 + Math.max(MIN_CREDIBILITY, postScore)) / Math.log(2);
+  
+  // Add some randomness to create variation (±10%)
+  const variation = 0.9 + (Math.random() * 0.2);
+  
+  return baseWeight * postFactor * variation;
 }
 
 export function updatePostCredibility(

@@ -25,29 +25,32 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { limit, page, subredditName } = z
+    const { limit, page, subredditName, feedType } = z
       .object({
         limit: z.string(),
         page: z.string(),
         subredditName: z.string().nullish().optional(),
+        feedType: z.enum(["custom", "all"]).optional(),
       })
       .parse({
         subredditName: url.searchParams.get("subredditName"),
         limit: url.searchParams.get("limit"),
         page: url.searchParams.get("page"),
+        feedType: url.searchParams.get("feedType"),
       });
 
     let whereClause = {};
 
-    // Check if user is browsing a specific subreddit, and if not, whether
-    // they're logged in (show custom feed) or not (show generic feed)
+    // If viewing a specific subreddit, filter by that
     if (subredditName) {
       whereClause = {
         subreddit: {
           name: subredditName,
         },
       };
-    } else if (session) {
+    } 
+    // If custom feed and logged in, show subscribed posts
+    else if (feedType === "custom" && session && joinedCommunitiesIds.length > 0) {
       whereClause = {
         subreddit: {
           id: {
@@ -56,6 +59,7 @@ export async function GET(req: NextRequest) {
         },
       };
     }
+    // Otherwise (all feed or no subscriptions), show all posts
 
     // Get distinct posts with all needed relations
     const posts = await prisma.post.findMany({

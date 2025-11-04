@@ -60,41 +60,53 @@ export const authOptions: NextAuthOptions = {
     }),
 
     async jwt({ token, user }) {
-      const dbUser = await prisma.user.findFirst({
-        where: {
-          email: token.email,
-        },
-      });
-
-      // If there's no DB user yet, the `user` object will only be
-      // present immediately after sign in. Guard against `user` being
-      // undefined in subsequent JWT callbacks to avoid reading
-      // properties from undefined (which caused the runtime error).
-      if (!dbUser) {
-        if (user) { 
+      try {
+        if (user) {
+          // Initial sign in
           token.id = user.id;
+          return token;
         }
-        return token;
-      }
 
-      if (!dbUser.username) {
-        await prisma.user.update({
+        // Subsequent calls
+        const dbUser = await prisma.user.findFirst({
           where: {
-            id: dbUser.id,
-          },
-          data: {
-            username: nanoid(10),
+            email: token.email,
           },
         });
-      }
 
-      return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        picture: dbUser.image,
-        username: dbUser.username,
-      };
+        if (!dbUser) {
+          return token;
+        }
+
+        if (!dbUser.username) {
+          const updatedUser = await prisma.user.update({
+            where: {
+              id: dbUser.id,
+            },
+            data: {
+              username: nanoid(10),
+            },
+          });
+          return {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            picture: updatedUser.image,
+            username: updatedUser.username,
+          };
+        }
+
+        return {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          picture: dbUser.image,
+          username: dbUser.username,
+        };
+      } catch (error) {
+        console.error("JWT callback error:", error);
+        return token;
+      }
     },
     redirect() {
       return "/";

@@ -26,8 +26,15 @@ export function Post({
   commentCount,
 }: PostProps) {
   const postRef = useRef<HTMLParagraphElement>(null);
+  const [isClient, setIsClient] = useState(false);
   // local state so we can update credibility in real-time
   const [localPost, setLocalPost] = useState(post);
+  
+  // Mark as client-side after mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   // listen for credibility events for this post
   useCredibilityEventListener(post.id, setLocalPost);
 
@@ -55,13 +62,17 @@ export function Post({
             ) : null}
             <span>Posted by u/{post.author.username}</span>{" "}
             {formatTimeToNow(new Date(post.createdAt))}
-            {currentVote && (
+            {isClient && (
               <>
                 <span className="px-1">•</span>
-                <VoteWeight
-                  weight={currentVote.weight}
-                  type={currentVote.type}
-                />
+                {currentVote ? (
+                  <VoteWeight
+                    weight={currentVote.weight}
+                    type={currentVote.type}
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">Vote to see your influence</span>
+                )}
               </>
             )}
           </div>
@@ -78,7 +89,7 @@ export function Post({
           >
             <EditorOutput content={localPost.content} />
 
-            {postRef.current?.clientHeight === 160 ? (
+            {isClient && postRef.current?.clientHeight === 160 ? (
               // Blur bottom if content is too long
               <div className="absolute bottom-0 left-0 h-24 w-full bg-gradient-to-t from-secondary to-transparent"></div>
             ) : null}

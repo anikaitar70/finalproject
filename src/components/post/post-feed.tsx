@@ -16,9 +16,10 @@ import { type ExtendedPost } from "~/types/db";
 interface PostFeedProps {
   initialPosts: ExtendedPost[];
   subredditName?: string;
+  feedType?: 'custom' | 'all';
 }
 
-export function PostFeed({ initialPosts, subredditName }: PostFeedProps) {
+export function PostFeed({ initialPosts, subredditName, feedType }: PostFeedProps) {
   const lastPostRef = useRef<HTMLDivElement | null>(null);
   const [isClient, setIsClient] = useState(false);
 
@@ -37,9 +38,14 @@ export function PostFeed({ initialPosts, subredditName }: PostFeedProps) {
   } = useInfiniteQuery({
     queryKey: ["infinite-query", { subredditName }],
     queryFn: async ({ pageParam = 1 }) => {
-      const query =
-        `/api/posts?limit=${INFINITE_SCROLL_PAGINATION_RESULTS}&page=${pageParam}` +
-        (!!subredditName ? `&subredditName=${subredditName}` : "");
+      let query = `/api/posts?limit=${INFINITE_SCROLL_PAGINATION_RESULTS}&page=${pageParam}`;
+      
+      if (subredditName) {
+        query += `&subredditName=${subredditName}`;
+      }
+      if (feedType) {
+        query += `&feedType=${feedType}`;
+      }
 
       const { data } = await axios.get(query);
       return data as ExtendedPost[];
@@ -77,21 +83,8 @@ export function PostFeed({ initialPosts, subredditName }: PostFeedProps) {
 
         const isLast = index === posts.length - 1;
 
-        if (!isClient) {
-          return (
-            <div key={post.id}>
-              <Post
-                post={post}
-                commentCount={post.comments.length}
-                subredditName={post.subreddit.name}
-                currentVote={currentVote}
-              />
-            </div>
-          );
-        }
-
         return (
-          <div key={post.id} ref={isLast ? ref : undefined}>
+          <div key={post.id} ref={isLast && isClient ? ref : undefined}>
             <Post
               post={post}
               commentCount={post.comments.length}
