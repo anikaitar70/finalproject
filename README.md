@@ -1,4 +1,4 @@
-# OnlyScholars
+# Cred Rank Net
 
 > A credibility-based research sharing platform that combines academic rigor with social engagement.
 
