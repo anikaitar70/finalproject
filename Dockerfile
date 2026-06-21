@@ -23,12 +23,10 @@ ENV NODE_ENV=production
 RUN npx prisma generate
 RUN npm run build
 
-# Prepare standalone bundle with Prisma runtime files
-RUN cp -r prisma .next/standalone/prisma \
-  && mkdir -p .next/standalone/node_modules/@prisma .next/standalone/node_modules/.prisma \
+# Prepare standalone bundle with Prisma client runtime only
+RUN mkdir -p .next/standalone/node_modules/@prisma .next/standalone/node_modules/.prisma \
   && cp -r node_modules/@prisma/. .next/standalone/node_modules/@prisma/ \
   && cp -r node_modules/.prisma/. .next/standalone/node_modules/.prisma/ \
-  && cp -r node_modules/prisma .next/standalone/node_modules/prisma \
   && cp package.json .next/standalone/package.json \
   && mkdir -p .next/standalone/scripts \
   && cp scripts/validate-env.mjs .next/standalone/scripts/validate-env.mjs \
@@ -49,11 +47,17 @@ RUN apk add --no-cache su-exec wget openssl \
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/prisma /migrate/prisma
 COPY docker/entrypoint.sh /app/entrypoint.sh
 
+# Isolated Prisma CLI for startup migrations (full dependency tree)
+WORKDIR /migrate
+RUN npm install prisma@6.19.3 --omit=dev --no-package-lock
+
+WORKDIR /app
 RUN chmod +x /app/entrypoint.sh \
   && mkdir -p /data /data/uploads /app/logs \
-  && chown -R nextjs:nodejs /app /data /app/logs
+  && chown -R nextjs:nodejs /app /data /app/logs /migrate
 
 EXPOSE 3000
 
