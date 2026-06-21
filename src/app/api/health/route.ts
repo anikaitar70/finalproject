@@ -31,7 +31,7 @@ export async function GET() {
 
   try {
     const pong = await redis.ping();
-    if (pong !== "PONG") {
+    if (String(pong).toUpperCase() !== "PONG") {
       throw new Error(`Unexpected Redis ping response: ${String(pong)}`);
     }
 
@@ -39,7 +39,8 @@ export async function GET() {
     await redis.set(probeKey, "1", { ex: 10 });
     const probeValue = await redis.get(probeKey);
     await redis.del(probeKey);
-    checks.redis = probeValue === "1";
+    // Upstash may deserialize "1" as number 1
+    checks.redis = probeValue == "1";
   } catch (error) {
     logWarn("health.redis.failed", {
       error: error instanceof Error ? error.message : "unknown",
