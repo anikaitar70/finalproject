@@ -37,7 +37,7 @@ const prisma = new PrismaClient();
 try {
   await prisma.$queryRaw`SELECT 1`;
 
-  const tables = await prisma.$queryRaw<Array<{ name: string }>>`
+  const tables = await prisma.$queryRaw`
     SELECT name FROM sqlite_master WHERE type='table' AND name='_prisma_migrations'
   `;
 
