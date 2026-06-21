@@ -1,25 +1,30 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { type Prisma } from "@prisma/client";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import { checkRateLimit } from "~/lib/rate-limiter";
 import { PostValidator } from "~/lib/validators/post";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-
-    const { content, subredditId, title } = PostValidator.parse(body);
-
     const session = await getServerAuthSession();
 
-    // Check if user is signed in
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Verify that user is subscribed to passed subreddit id
+    const canPost = await checkRateLimit(session.user.id, "post", 10);
+    if (!canPost) {
+      return new Response("Please wait before posting again", { status: 429 });
+    }
+
+    const body = await req.json();
+    const { content, subredditId, title } = PostValidator.parse(body);
+
     const subscription = await prisma.subscription.findFirst({
       where: {
         subredditId,
@@ -34,29 +39,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get author's credibility score
     const author = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { credibilityScore: true }
+      select: { credibilityScore: true },
     });
 
-    // Initialize post with author's credibility as starting point
     await prisma.post.create({
       data: {
         authorId: session.user.id,
-        content,
+        content: content as Prisma.InputJsonValue,
         subredditId,
         title,
         credibilityScore: author?.credibilityScore ?? 1.0,
-        citationCount: 0,
-        lastConsensusUpdate: new Date()
       },
     });
 
     return new Response("OK");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response("Could not post to subreddit. Please try again later", {

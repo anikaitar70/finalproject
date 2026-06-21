@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
-import { z } from "zod";
 
+import { validationErrorResponse } from "~/lib/api-response";
 import { SubredditSubscriptionValidator } from "~/lib/validators/subreddit";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
@@ -9,16 +9,22 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerAuthSession();
 
-    // Check if user is signed in
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const body = await req.json();
     const { subredditId } = SubredditSubscriptionValidator.parse(body);
 
-    // Check if user is subscribed or not
+    const subreddit = await prisma.subreddit.findUnique({
+      where: { id: subredditId },
+      select: { id: true },
+    });
+
+    if (!subreddit) {
+      return new Response("Subreddit not found", { status: 404 });
+    }
+
     const subscriptionExists = await prisma.subscription.findFirst({
       where: {
         subredditId,
@@ -35,7 +41,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If subscribed, unsubscribe user from subreddit
     await prisma.subscription.delete({
       where: {
         userId_subredditId: {
@@ -47,8 +52,9 @@ export async function POST(req: NextRequest) {
 
     return new Response(subredditId);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response(

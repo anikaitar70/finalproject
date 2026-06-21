@@ -1,0 +1,62 @@
+# Cred Rank Net — isolated production stack
+# Safe to run alongside other Docker workloads on the same VPS.
+#
+# Usage:
+#   cp .env.production.example .env.production
+#   # edit .env.production
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+name: credranknet
+
+services:
+  credranknet:
+    container_name: credranknet
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: credranknet:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: file:/data/db.sqlite
+      AUTH_TRUST_HOST: "true"
+    ports:
+      - "127.0.0.1:${CREDRANKNET_PORT:-3010}:3000"
+    volumes:
+      - credranknet_data:/data
+      - credranknet_uploads:/data/uploads
+      - credranknet_logs:/app/logs
+    networks:
+      - credranknet_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"status\":\"healthy\"' || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  credranknet_net:
+    name: credranknet_net
+    driver: bridge
+
+volumes:
+  credranknet_data:
+    name: credranknet_data
+  credranknet_uploads:
+    name: credranknet_uploads
+  credranknet_logs:
+    name: credranknet_logs

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type User } from "next-auth";
+import { type UserRole } from "@prisma/client";
 import { signOut } from "next-auth/react";
 
 import { Icons } from "~/components/icons";
@@ -17,7 +18,7 @@ import {
 import { UserAvatar } from "~/components/user-avatar";
 
 interface UserAccountNavProps extends React.HTMLAttributes<HTMLDivElement> {
-  user: Pick<User, "name" | "image" | "email">;
+  user: Pick<User, "name" | "image" | "email"> & { role?: UserRole };
 }
 
 export function UserAccountNav({ user }: UserAccountNavProps) {
@@ -68,7 +69,7 @@ export function UserAccountNav({ user }: UserAccountNavProps) {
             </Link>
           </DropdownMenuItem>
 
-          {user.email === "anikaitar@gmail.com" && (
+          {user.role === "ADMIN" && (
             <DropdownMenuItem asChild>
               <Link href="/admin">
                 <Icons.settings className="mr-2 h-4 w-4" />

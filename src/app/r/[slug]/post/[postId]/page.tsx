@@ -1,38 +1,34 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import type { Post, User, Vote } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 import { CommentSection, Icons, PostVoteServer } from "~/components";
 import { EditorOutput } from "~/components/editor-output";
 import { buttonVariants } from "~/components/ui/button";
-import { redis } from "~/lib/redis";
+import { getCachedPost, parseCachedContent } from "~/lib/redis-cache";
 import { formatTimeToNow } from "~/lib/utils";
 import { prisma } from "~/server/db";
-import { type CachedPost } from "~/types/redis";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 interface PostDetailPageProps {
-  params: {
+  params: Promise<{
     postId: string;
-  };
+  }>;
 }
 
 function PostVoteShell() {
   return (
     <div className="flex w-20 flex-col items-center pr-6">
-      {/* Upvote */}
       <div className={buttonVariants({ variant: "ghost" })}>
         <Icons.upvote className="h-5 w-5 text-zinc-700" />
       </div>
 
-      {/* Votes */}
       <div className="py-2 text-center text-sm font-medium text-zinc-900">
         <Icons.spinner className="h-3 w-3 animate-spin" />
       </div>
 
-      {/* Downvote */}
       <div className={buttonVariants({ variant: "ghost" })}>
         <Icons.downvote className="h-5 w-5 text-zinc-700" />
       </div>
@@ -40,13 +36,19 @@ function PostVoteShell() {
   );
 }
 
-export default async function PostDetailPage({
-  params: { postId },
-}: PostDetailPageProps) {
-  // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style
-  const cachedPost = (await redis.hgetall(`post:${postId}`)) as CachedPost;
+export default async function PostDetailPage({ params }: PostDetailPageProps) {
+  const { postId } = await params;
+  const cachedPost = await getCachedPost(postId);
 
-  let post: (Post & { votes: Vote[]; author: User }) | null = null;
+  type LoadedPost = {
+    id: string;
+    title: string;
+    content: Prisma.JsonValue;
+    createdAt: Date;
+    author: { username: string | null };
+  };
+
+  let post: LoadedPost | null = null;
 
   if (!cachedPost) {
     post = await prisma.post.findFirst({
@@ -71,7 +73,7 @@ export default async function PostDetailPage({
             weight: true,
             votedAt: true,
             lastWeightUpdate: true,
-          }
+          },
         },
         author: {
           select: {
@@ -79,19 +81,32 @@ export default async function PostDetailPage({
             name: true,
             username: true,
             image: true,
-            credibilityScore: true
-          }
-        }
-      }
+            credibilityScore: true,
+          },
+        },
+      },
     });
   }
 
-  if (!post && !cachedPost) return notFound();
+  if (!post && !cachedPost) {
+    return notFound();
+  }
+
+  const resolvedPostId = post?.id ?? cachedPost?.id;
+  const resolvedTitle = post?.title ?? cachedPost?.title;
+  const resolvedAuthorUsername =
+    post?.author.username ?? cachedPost?.authorUsername;
+  const resolvedCreatedAt = post?.createdAt ?? cachedPost?.createdAt;
+  const resolvedContent = post?.content ?? parseCachedContent(cachedPost?.content);
+
+  if (!resolvedPostId || !resolvedTitle || !resolvedAuthorUsername || !resolvedCreatedAt) {
+    return notFound();
+  }
 
   const getData = async () => {
     const result = await prisma.post.findUnique({
       where: {
-        id: post?.id ?? cachedPost.id,  // Use the same ID source as we use in the JSX
+        id: resolvedPostId,
       },
       select: {
         id: true,
@@ -101,12 +116,15 @@ export default async function PostDetailPage({
             type: true,
             userId: true,
             weight: true,
-          }
+          },
         },
       },
     });
-    
-    if (!result) return null;
+
+    if (!result) {
+      return null;
+    }
+
     return result;
   };
 
@@ -114,32 +132,27 @@ export default async function PostDetailPage({
     <div>
       <div className="flex h-full flex-col items-center justify-between sm:flex-row sm:items-start">
         <Suspense fallback={<PostVoteShell />}>
-          <PostVoteServer
-            postId={post?.id ?? cachedPost.id}
-            getData={getData}
-          />
+          <PostVoteServer postId={resolvedPostId} getData={getData} />
         </Suspense>
 
         <div className="w-full flex-1 rounded-sm bg-card p-4 sm:w-0">
           <p className="mt-1 max-h-40 truncate text-xs text-muted-foreground">
-            <span>
-              Posted by u/{post?.author.username ?? cachedPost.authorUsername} •
-            </span>{" "}
-            {formatTimeToNow(new Date(post?.createdAt ?? cachedPost.createdAt))}
+            <span>Posted by u/{resolvedAuthorUsername} •</span>{" "}
+            {formatTimeToNow(new Date(resolvedCreatedAt))}
           </p>
 
           <h1 className="py-2 text-xl font-semibold leading-6 text-primary">
-            {post?.title ?? cachedPost.title}
+            {resolvedTitle}
           </h1>
 
-          <EditorOutput content={post?.content ?? cachedPost.content} />
+          <EditorOutput content={resolvedContent} />
 
           <Suspense
             fallback={
               <Icons.spinner className="h-5 w-5 animate-spin text-zinc-500" />
             }
           >
-            <CommentSection postId={post?.id ?? cachedPost.id} />
+            <CommentSection postId={resolvedPostId} />
           </Suspense>
         </div>
       </div>

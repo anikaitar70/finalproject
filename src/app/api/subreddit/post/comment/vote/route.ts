@@ -1,24 +1,41 @@
-import { z } from "zod";
-
+import { isSelfVote } from "~/lib/self-vote";
+import { validationErrorResponse } from "~/lib/api-response";
+import { checkRateLimit } from "~/lib/rate-limiter";
 import { CommentVoteValidator } from "~/lib/validators/vote";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
 
 export async function PATCH(req: Request) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const body = await req.json();
-
-    const { commentId, voteType } = CommentVoteValidator.parse(body);
-
     const session = await getServerAuthSession();
 
-    // Check if user is signed in
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Check if user has already voted on this post
+    const canVote = await checkRateLimit(session.user.id, "comment-vote", 5);
+    if (!canVote) {
+      return new Response("Please wait before voting again", { status: 429 });
+    }
+
+    const body = await req.json();
+    const { commentId, voteType } = CommentVoteValidator.parse(body);
+
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { authorId: true },
+    });
+
+    if (!comment) {
+      return new Response("Comment not found", { status: 404 });
+    }
+
+    if (isSelfVote(comment.authorId, session.user.id)) {
+      return new Response("You cannot vote on your own comment", {
+        status: 403,
+      });
+    }
+
     const existingVote = await prisma.commentVote.findFirst({
       where: {
         userId: session.user.id,
@@ -27,7 +44,6 @@ export async function PATCH(req: Request) {
     });
 
     if (existingVote) {
-      // If vote type is the same as existing vote, delete the vote
       if (existingVote.type === voteType) {
         await prisma.commentVote.delete({
           where: {
@@ -39,25 +55,23 @@ export async function PATCH(req: Request) {
         });
 
         return new Response("OK");
-      } else {
-        // If vote type is different, update the vote
-        await prisma.commentVote.update({
-          where: {
-            userId_commentId: {
-              commentId,
-              userId: session.user.id,
-            },
-          },
-          data: {
-            type: voteType,
-          },
-        });
-
-        return new Response("OK");
       }
+
+      await prisma.commentVote.update({
+        where: {
+          userId_commentId: {
+            commentId,
+            userId: session.user.id,
+          },
+        },
+        data: {
+          type: voteType,
+        },
+      });
+
+      return new Response("OK");
     }
 
-    // If no existing vote, create a new vote
     await prisma.commentVote.create({
       data: {
         type: voteType,
@@ -68,8 +82,9 @@ export async function PATCH(req: Request) {
 
     return new Response("OK");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response(

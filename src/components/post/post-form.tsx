@@ -15,7 +15,9 @@ import { toast } from "~/components/ui/use-toast";
 import { editorTools } from "~/lib/editor-tools";
 import { PostValidator, type PostCreationRequest } from "~/lib/validators/post";
 
-type FormData = z.infer<typeof PostValidator>;
+const PostTitleValidator = PostValidator.pick({ title: true });
+
+type FormData = z.infer<typeof PostTitleValidator>;
 
 interface PostFormProps {
   subredditId: string;
@@ -27,16 +29,14 @@ export function PostForm({ subredditId }: PostFormProps) {
     handleSubmit,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(PostValidator),
+    resolver: zodResolver(PostTitleValidator),
     defaultValues: {
-      content: null,
-      subredditId,
       title: "",
     },
   });
 
-  const ref = useRef<EditorJS>();
-  const _titleRef = useRef<HTMLTextAreaElement>(null);
+  const ref = useRef<EditorJS | undefined>(undefined);
+  const _titleRef = useRef<HTMLTextAreaElement | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   const pathname = usePathname();
@@ -134,13 +134,21 @@ export function PostForm({ subredditId }: PostFormProps) {
   async function onSubmit(data: FormData) {
     const blocks = await ref.current?.save();
 
-    const payload: PostCreationRequest = {
-      content: blocks,
-      subredditId,
-      title: data.title,
-    };
+    try {
+      const payload = PostValidator.parse({
+        content: blocks,
+        subredditId,
+        title: data.title,
+      });
 
-    createPost(payload);
+      createPost(payload);
+    } catch {
+      toast({
+        title: "Something went wrong.",
+        description: "Post content is missing or invalid.",
+        variant: "destructive",
+      });
+    }
   }
 
   if (!isMounted) {
@@ -161,8 +169,6 @@ export function PostForm({ subredditId }: PostFormProps) {
           <TextareaAutosize
             ref={(e) => {
               titleRef(e);
-
-              // @ts-expect-error Cannot assign to current because it is a read-only property
               _titleRef.current = e;
             }}
             {...rest}

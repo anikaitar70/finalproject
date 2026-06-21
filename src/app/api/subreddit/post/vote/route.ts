@@ -1,18 +1,21 @@
 import { type NextRequest } from "next/server";
-import { z } from "zod";
-import { checkVoteRateLimit } from "~/lib/vote-server";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import {
+  computePostConsensus,
+  computePostScoreAfterVoteMutation,
+  computeVoteWeight,
+  resolveVoteMutation,
+  updateAuthorCredibility,
+} from "~/lib/credibility";
+import { recalculateCredibilityRanks } from "~/lib/credibility-ranks";
+import { isSelfVote } from "~/lib/self-vote";
+import { checkRateLimit } from "~/lib/rate-limiter";
 import { redis } from "~/lib/redis";
 import { PostVoteValidator } from "~/lib/validators/vote";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
-import { type CachedPost, type CredibilityUser, type CredibilityPost, type WeightedVote } from "~/types/credibility";
-import {
-  computeVoteWeight,
-  updatePostCredibility,
-  updateAuthorCredibility,
-  computePostConsensus
-} from "~/lib/credibility";
+import { type CachedPost } from "~/types/credibility";
 
 const TRIGGER_CACHE_UPVOTE_THRESHOLD = 1;
 
@@ -26,40 +29,38 @@ export async function PATCH(req: NextRequest) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Check rate limit
-    const canVote = await checkVoteRateLimit(session.user.id);
+    const canVote = await checkRateLimit(session.user.id, "vote", 5);
     if (!canVote) {
-      return new Response("Please wait a few seconds before voting again", { status: 429 });
+      return new Response("Please wait a few seconds before voting again", {
+        status: 429,
+      });
     }
 
-    // Start a transaction for atomic credibility updates
     const result = await prisma.$transaction(async (tx) => {
-      // Get all necessary data upfront
       const [voter, post, existingVote] = await Promise.all([
         tx.user.findUnique({
           where: { id: session.user.id },
-          select: { credibilityScore: true }
+          select: { credibilityScore: true },
         }),
         tx.post.findUnique({
           where: { id: postId },
           include: {
-            votes: true,
             author: {
               select: {
                 id: true,
-                credibilityScore: true
-              }
-            }
-          }
+                credibilityScore: true,
+              },
+            },
+          },
         }),
         tx.vote.findUnique({
           where: {
             userId_postId: {
               userId: session.user.id,
-              postId
-            }
-          }
-        })
+              postId,
+            },
+          },
+        }),
       ]);
 
       if (!voter) {
@@ -69,95 +70,81 @@ export async function PATCH(req: NextRequest) {
         throw new Error("Post not found");
       }
 
-      // Compute vote weight based on voter credibility and post score
-      const voteWeight = computeVoteWeight(voter.credibilityScore, post.credibilityScore);
-
-      if (!post) {
-        throw new Error("Post not found");
+      if (isSelfVote(post.authorId, session.user.id)) {
+        throw new SelfVoteError();
       }
 
-      // Handle vote changes
-      if (existingVote) {
-        if (existingVote.type === voteType) {
-          // Remove vote
-          await tx.vote.delete({
-            where: {
-              userId_postId: {
-                postId,
-                userId: session.user.id,
-              },
+      const voteWeight = computeVoteWeight(
+        voter.credibilityScore,
+        post.credibilityScore,
+      );
+
+      const mutation = resolveVoteMutation(
+        existingVote
+          ? { type: existingVote.type, weight: existingVote.weight }
+          : null,
+        voteType,
+        voteWeight,
+      );
+
+      if (mutation.action === "remove") {
+        await tx.vote.delete({
+          where: {
+            userId_postId: {
+              postId,
+              userId: session.user.id,
             },
-          });
-        } else {
-          // Update vote
-          await tx.vote.update({
-            where: {
-              userId_postId: {
-                postId,
-                userId: session.user.id,
-              },
+          },
+        });
+      } else if (mutation.action === "flip") {
+        await tx.vote.update({
+          where: {
+            userId_postId: {
+              postId,
+              userId: session.user.id,
             },
-            data: {
-              type: voteType,
-              weight: voteWeight,
-              lastWeightUpdate: new Date(),
-            },
-          });
-        }
+          },
+          data: {
+            type: mutation.newType,
+            weight: mutation.newWeight,
+            lastWeightUpdate: new Date(),
+          },
+        });
       } else {
-        // Create new vote
         await tx.vote.create({
           data: {
-            type: voteType,
+            type: mutation.voteType,
             userId: session.user.id,
             postId,
-            weight: voteWeight,
+            weight: mutation.weight,
             votedAt: new Date(),
             lastWeightUpdate: new Date(),
           },
         });
       }
 
-      // Calculate new scores
-      let newPostScore = post.credibilityScore;
-      
-      if (existingVote?.type === voteType) {
-        // Removing vote - reverse the previous vote's effect
-        const reverseDirection = voteType === "UP" ? "DOWN" : "UP";
-        newPostScore = updatePostCredibility(
-          post.credibilityScore,
-          reverseDirection,
-          existingVote.weight
-        );
-      } else {
-        // New vote or changing vote direction
-        newPostScore = updatePostCredibility(
-          post.credibilityScore,
-          voteType,
-          voteWeight
-        );
-      }
-      
-      // Recalculate consensus after vote changes
-      const postConsensus = computePostConsensus(
-        post.votes.filter(v => v.userId !== session.user.id) // Remove existing vote if any
+      const newPostScore = computePostScoreAfterVoteMutation(
+        post.credibilityScore,
+        mutation,
       );
 
-      // Update post credibility
-      const updatedPost = await tx.post.update({
+      const updatedVotes = await tx.vote.findMany({
+        where: { postId },
+        select: { type: true, weight: true },
+      });
+
+      const postConsensus = computePostConsensus(updatedVotes);
+
+      await tx.post.update({
         where: { id: postId },
         data: {
           credibilityScore: newPostScore,
         },
-        include: {
-          votes: true,
-        }
       });
 
-      // Update author credibility based on post consensus
       const newAuthorScore = updateAuthorCredibility(
         post.author.credibilityScore,
-        postConsensus
+        postConsensus,
       );
 
       await tx.user.update({
@@ -168,38 +155,13 @@ export async function PATCH(req: NextRequest) {
         },
       });
 
-      // Prepare debug event
+      await recalculateCredibilityRanks(tx);
+
       const prevPostScore = post.credibilityScore;
       const prevAuthorScore = post.author.credibilityScore;
-      const deltaPost = newPostScore - (prevPostScore ?? 0);
-      const deltaAuthor = newAuthorScore - (prevAuthorScore ?? 0);
+      const deltaPost = newPostScore - prevPostScore;
+      const deltaAuthor = newAuthorScore - prevAuthorScore;
 
-      const debugEvent = {
-        ts: new Date().toISOString(),
-        voterId: session.user.id,
-        postId,
-        voteType,
-        voteWeight,
-        prevPostScore,
-        newPostScore,
-        deltaPost,
-        prevAuthorScore,
-        newAuthorScore,
-        deltaAuthor,
-        postConsensus,
-      };
-
-      try {
-        // push debug event into redis list (development helper)
-        await redis.lpush("credibility:events", JSON.stringify(debugEvent));
-        // keep only last 200 events
-        await redis.ltrim("credibility:events", 0, 199);
-      } catch (e) {
-        // non-fatal
-        console.warn("Failed to write debug event to redis", e);
-      }
-
-      // Return updated scores for cache and client
       return {
         postScore: newPostScore,
         authorScore: newAuthorScore,
@@ -207,49 +169,100 @@ export async function PATCH(req: NextRequest) {
         voteWeight,
         deltaPost,
         deltaAuthor,
+        mutation,
+        debugEvent: {
+          ts: new Date().toISOString(),
+          voterId: session.user.id,
+          postId,
+          voteType,
+          voteWeight,
+          mutation,
+          prevPostScore,
+          newPostScore,
+          deltaPost,
+          prevAuthorScore,
+          newAuthorScore,
+          deltaAuthor,
+          postConsensus,
+        },
       };
     });
 
-    // Update cache if needed
+    try {
+      await redis.lpush(
+        "credibility:events",
+        JSON.stringify(result.debugEvent),
+      );
+      await redis.ltrim("credibility:events", 0, 199);
+    } catch (error) {
+      console.warn("Failed to write debug event to redis", error);
+    }
+
     const votesAmt = result.postConsensus * TRIGGER_CACHE_UPVOTE_THRESHOLD;
     if (Math.abs(votesAmt) >= TRIGGER_CACHE_UPVOTE_THRESHOLD) {
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
-        include: { author: true },
-      });
+      try {
+        const post = await prisma.post.findUnique({
+          where: { id: postId },
+          include: { author: true },
+        });
 
-      if (post) {
-        const cachePayload: CachedPost = {
-          authorUsername: post.author.username ?? "",
-          content: JSON.stringify(post.content),
-          id: post.id,
-          title: post.title,
-          currentVote: voteType,
-          createdAt: post.createdAt,
-          credibilityScore: result.postScore,
-        };
+        if (post) {
+          const cachePayload: CachedPost = {
+            authorUsername: post.author.username ?? "",
+            content: JSON.stringify(post.content),
+            id: post.id,
+            title: post.title,
+            currentVote: voteType,
+            createdAt: post.createdAt,
+            credibilityScore: result.postScore,
+            researchDomain: post.researchDomain,
+          };
 
-        await redis.hset(`post:${postId}`, Object.entries(cachePayload).reduce((acc, [key, value]) => {
-          acc[key] = typeof value === 'string' ? value : JSON.stringify(value);
-          return acc;
-        }, {} as Record<string, string>));
+          await redis.hset(
+            `post:${postId}`,
+            Object.entries(cachePayload).reduce(
+              (acc, [key, value]) => {
+                acc[key] =
+                  typeof value === "string" ? value : JSON.stringify(value);
+                return acc;
+              },
+              {} as Record<string, string>,
+            ),
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to update post cache in redis", error);
       }
     }
 
-    return new Response(JSON.stringify(result), { 
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const { debugEvent: _debugEvent, mutation: _mutation, ...responseBody } =
+      result;
 
+    return new Response(JSON.stringify(responseBody), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    if (error instanceof SelfVoteError) {
+      return new Response("You cannot vote on your own post", { status: 403 });
+    }
+
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     console.error("Vote error:", error);
     return new Response(
       "Could not post your vote at this time. Please try again later",
-      { status: 500 }
+      { status: 500 },
     );
+  }
+}
+
+class SelfVoteError extends Error {
+  constructor() {
+    super("Self-vote not allowed");
+    this.name = "SelfVoteError";
   }
 }

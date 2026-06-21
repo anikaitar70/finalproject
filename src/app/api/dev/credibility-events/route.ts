@@ -1,14 +1,19 @@
+import { assertAdminApi } from "~/server/admin";
 import { redis } from "~/lib/redis";
 
 export async function GET() {
+  const forbidden = await assertAdminApi();
+  if (forbidden) {
+    return forbidden;
+  }
+
   try {
-    // Return last 50 events
     const raw = await redis.lrange("credibility:events", 0, 49);
-    const events = raw.map((r) => {
+    const events = raw.map((entry) => {
       try {
-        return JSON.parse(r as string);
-      } catch (e) {
-        return { raw: r };
+        return JSON.parse(entry as string) as Record<string, unknown>;
+      } catch {
+        return { raw: entry };
       }
     });
 

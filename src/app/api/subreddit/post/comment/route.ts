@@ -1,24 +1,52 @@
 import { z } from "zod";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import { checkRateLimit } from "~/lib/rate-limiter";
 import { CommentValidator } from "~/lib/validators/comment";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
 
 export async function PATCH(req: Request) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const body = await req.json();
-
-    const { postId, text, replyToId } = CommentValidator.parse(body);
-
     const session = await getServerAuthSession();
 
-    // Check if user is signed in
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // Create a new vote
+    const canComment = await checkRateLimit(session.user.id, "comment", 5);
+    if (!canComment) {
+      return new Response("Please wait before commenting again", {
+        status: 429,
+      });
+    }
+
+    const body = await req.json();
+    const { postId, text, replyToId } = CommentValidator.parse(body);
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    });
+
+    if (!post) {
+      return new Response("Post not found", { status: 404 });
+    }
+
+    if (replyToId) {
+      const parentComment = await prisma.comment.findFirst({
+        where: {
+          id: replyToId,
+          postId,
+        },
+        select: { id: true },
+      });
+
+      if (!parentComment) {
+        return new Response("Invalid reply target", { status: 400 });
+      }
+    }
+
     await prisma.comment.create({
       data: {
         postId,
@@ -30,8 +58,9 @@ export async function PATCH(req: Request) {
 
     return new Response("OK");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response(

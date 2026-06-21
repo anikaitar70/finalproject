@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import type { Post, Vote } from "@prisma/client";
+import type { Vote } from "@prisma/client";
 
 import { PostVoteClient } from "~/components/post-vote/post-vote-client";
 import { getServerAuthSession } from "~/server/auth";
@@ -8,7 +8,10 @@ interface PostVoteServerProps {
   postId: string;
   initialCredibility?: number;
   initialVote?: Vote["type"] | null;
-  getData?: () => Promise<(Post & { votes: Vote[] }) | null>;
+  getData?: () => Promise<{
+    credibilityScore: number;
+    votes: Array<Pick<Vote, "userId" | "type">>;
+  } | null>;
 }
 
 export async function PostVoteServer({

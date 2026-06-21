@@ -61,6 +61,7 @@ model User {
   sessions      Session[]
 
   username String? @unique
+  role      UserRole @default(USER)
 
   // OnlyScholars credibility metrics
   credibilityScore Float    @default(1.0)
@@ -82,6 +83,11 @@ model User {
 enum VoteType {
   UP
   DOWN
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 model Subreddit {

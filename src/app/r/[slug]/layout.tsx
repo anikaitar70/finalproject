@@ -9,15 +9,12 @@ import { prisma } from "~/server/db";
 
 interface LayoutProps {
   children: React.ReactNode;
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
-export default async function Layout(props: LayoutProps) {
-  const { children } = props;
-  
-  // Await the params and get the slug
-  const params = await Promise.resolve(props.params);
-  const rawSlug = params?.slug;
+export default async function Layout({ children, params }: LayoutProps) {
+  const resolvedParams = await params;
+  const rawSlug = resolvedParams.slug;
   
   if (!rawSlug || rawSlug === 'undefined' || typeof rawSlug !== 'string') {
     return notFound();

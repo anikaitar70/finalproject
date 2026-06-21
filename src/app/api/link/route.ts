@@ -1,44 +1,77 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { type NextRequest } from "next/server";
 import axios from "axios";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import { assertSafeExternalUrl } from "~/lib/ssrf-guard";
+import { getServerAuthSession } from "~/server/auth";
+
+const MAX_RESPONSE_BYTES = 512 * 1024;
+const REQUEST_TIMEOUT_MS = 5000;
+
 export async function GET(req: NextRequest) {
+  const session = await getServerAuthSession();
+
+  if (!session?.user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const url = new URL(req.url);
   const href = url.searchParams.get("url");
 
   if (!href) {
-    return new Response("Invalid href", { status: 400 });
+    return new Response("Invalid request", { status: 400 });
   }
 
-  const res = await axios.get(href);
+  const safetyCheck = await assertSafeExternalUrl(href);
+  if (!safetyCheck.ok) {
+    return new Response("Invalid request", { status: 400 });
+  }
 
-  // Parse the HTML using regular expressions
-  const titleMatch = res.data.match(/<title>(.*?)<\/title>/);
-  const title = titleMatch ? titleMatch[1] : "";
-
-  const descriptionMatch = res.data.match(
-    /<meta name="description" content="(.*?)"/,
-  );
-  const description = descriptionMatch ? descriptionMatch[1] : "";
-
-  const imageMatch = res.data.match(
-    /<meta property="og:image" content="(.*?)"/,
-  );
-  const imageUrl = imageMatch ? imageMatch[1] : "";
-
-  // Return the data in the format required by the editor tool
-  return new Response(
-    JSON.stringify({
-      success: 1,
-      meta: {
-        title,
-        description,
-        image: {
-          url: imageUrl,
-        },
+  try {
+    const res = await axios.get<string>(safetyCheck.url.toString(), {
+      timeout: REQUEST_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxContentLength: MAX_RESPONSE_BYTES,
+      responseType: "text",
+      validateStatus: (status) => status >= 200 && status < 400,
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "CredRankNet-LinkPreview/1.0",
       },
-    }),
-  );
+    });
+
+    const html = typeof res.data === "string" ? res.data.slice(0, MAX_RESPONSE_BYTES) : "";
+
+    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+    const title = titleMatch?.[1]?.trim() ?? "";
+
+    const descriptionMatch = html.match(
+      /<meta name="description" content="(.*?)"/i,
+    );
+    const description = descriptionMatch?.[1]?.trim() ?? "";
+
+    const imageMatch = html.match(
+      /<meta property="og:image" content="(.*?)"/i,
+    );
+    const imageUrl = imageMatch?.[1]?.trim() ?? "";
+
+    return new Response(
+      JSON.stringify({
+        success: 1,
+        meta: {
+          title,
+          description,
+          image: {
+            url: imageUrl,
+          },
+        },
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  } catch (error) {
+    console.error("Link preview fetch failed:", error);
+    return new Response("Unable to fetch link preview", { status: 502 });
+  }
 }

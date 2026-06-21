@@ -42,7 +42,7 @@ export function UsernameForm({ user, className, ...props }: UsernameFormProps) {
     },
   });
 
-  const { mutate: updateUsername, isLoading } = useMutation({
+  const { mutate: updateUsername, isPending: isLoading } = useMutation({
     mutationFn: async ({ name }: FormData) => {
       const payload: FormData = { name };
 

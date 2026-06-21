@@ -6,6 +6,8 @@ await import("./src/env.js");
 
 /** @type {import("next").NextConfig} */
 const config = {
+  output: "standalone",
+  poweredByHeader: false,
   images: {
     remotePatterns: [
       {
@@ -22,7 +24,7 @@ const config = {
       }
     ]
   },
-  typescript: { ignoreBuildErrors: true }
+  typescript: { ignoreBuildErrors: false }
 };
 
 export default config;

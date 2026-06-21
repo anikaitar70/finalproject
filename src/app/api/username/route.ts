@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import { checkRateLimit } from "~/lib/rate-limiter";
 import { UsernameValidator } from "~/lib/validators/username";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
@@ -8,19 +10,26 @@ export async function PATCH(req: Request) {
   try {
     const session = await getServerAuthSession();
 
-    // Check if user is signed in
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const canUpdate = await checkRateLimit(session.user.id, "username", 30);
+    if (!canUpdate) {
+      return new Response("Please wait before changing your username again", {
+        status: 429,
+      });
+    }
+
     const body = await req.json();
     const { name } = UsernameValidator.parse(body);
 
-    // Check if username is already taken
     const usernameExists = await prisma.user.findFirst({
       where: {
         username: name,
+        NOT: {
+          id: session.user.id,
+        },
       },
     });
 
@@ -28,7 +37,6 @@ export async function PATCH(req: Request) {
       return new Response("Username already taken", { status: 409 });
     }
 
-    // Update username
     await prisma.user.update({
       where: {
         id: session.user.id,
@@ -40,8 +48,9 @@ export async function PATCH(req: Request) {
 
     return new Response("OK");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response(

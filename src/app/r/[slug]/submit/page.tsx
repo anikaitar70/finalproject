@@ -6,14 +6,16 @@ import { Button } from "~/components/ui/button";
 import { prisma } from "~/server/db";
 
 interface CreatePostProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 export default async function CreatePost({ params }: CreatePostProps) {
+  const { slug } = await params;
+
   const subreddit = await prisma.subreddit.findFirst({
     where: {
-      name: params.slug,
+      name: slug,
     },
   });
 
@@ -27,7 +29,7 @@ export default async function CreatePost({ params }: CreatePostProps) {
             Create Post
           </h3>
           <p className="ml-2 mt-1 truncate text-base text-gray-500 dark:text-primary">
-            in r/{params.slug}
+            in r/{slug}
           </p>
         </div>
       </div>

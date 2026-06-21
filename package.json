@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
+    "build": "next build --webpack",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint -c .eslintrc.cjs src",
+    "lint:fix": "eslint -c .eslintrc.cjs src --fix",
     "postinstall": "prisma generate",
-    "preview": "next build && next start",
+    "preview": "next build --webpack && next start",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "docker:build": "docker compose -f docker-compose.prod.yml build",
+    "docker:up": "docker compose -f docker-compose.prod.yml up -d",
+    "docker:down": "docker compose -f docker-compose.prod.yml down"
   },
   "dependencies": {
     "@editorjs/editorjs": "^2.31.0",
@@ -75,6 +80,7 @@
     "@types/react-dom": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
+    "@vitest/coverage-v8": "^3.2.6",
     "autoprefixer": "10.4.14",
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.0.1",
@@ -90,7 +96,8 @@
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
   },
   "ct3aMetadata": {
     "initVersion": "7.14.1"

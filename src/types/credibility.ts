@@ -1,18 +1,10 @@
 import { type User, type Post, type Vote } from "@prisma/client";
 
-export interface CredibilityUser extends User {
-  credibilityScore: number;
-  credibilityRank: number;
-  lastScoreUpdate: Date;
+export type CredibilityUser = Omit<User, "expertise"> & {
   expertise: string[];
-}
+};
 
-export interface CredibilityPost extends Post {
-  credibilityScore: number;
-  researchDomain?: string;
-  citationCount: number;
-  lastConsensusUpdate: Date;
-}
+export type CredibilityPost = Post;
 
 export interface WeightedVote extends Vote {
   weight: number;
@@ -20,7 +12,6 @@ export interface WeightedVote extends Vote {
   lastWeightUpdate: Date;
 }
 
-// Update CachedPost to include credibility
 export interface CachedPost {
   id: string;
   title: string;
@@ -29,6 +20,7 @@ export interface CachedPost {
   currentVote: "UP" | "DOWN" | null;
   createdAt: Date;
   credibilityScore: number;
+  researchDomain?: string | null;
   votes?: number;
   votedBy?: string;
 }

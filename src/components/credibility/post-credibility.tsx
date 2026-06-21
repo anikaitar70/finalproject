@@ -1,12 +1,10 @@
-import { type Post } from "@prisma/client";
-import { Award, BookOpen, Quote } from "lucide-react";
+import { Award, BookOpen } from "lucide-react";
 
 interface PostCredibilityProps {
-  post: Partial<Post> & {
+  post: {
     id: string;
     credibilityScore: number;
     researchDomain?: string | null;
-    citationCount?: number | undefined;
   };
 }
 
@@ -26,13 +24,6 @@ export function PostCredibility({ post }: PostCredibilityProps) {
           <span className="text-sm">{post.researchDomain}</span>
         </div>
       )}
-
-      {post.citationCount != null ? (
-        <div className="flex items-center space-x-2">
-          <Quote className="h-4 w-4 text-green-500" />
-          <span className="text-sm">{post.citationCount} citations</span>
-        </div>
-      ) : null}
     </div>
   );
 }

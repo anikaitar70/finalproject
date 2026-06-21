@@ -1,6 +1,10 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { validationErrorResponse } from "~/lib/api-response";
+import { parseExpertise } from "~/lib/expertise";
+import { publicUserSelect } from "~/lib/public-user-select";
+import { PaginationQuerySchema } from "~/lib/validators/pagination";
 import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
 
@@ -25,32 +29,29 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { limit, page, subredditName, feedType } = z
-      .object({
-        limit: z.string(),
-        page: z.string(),
-        subredditName: z.string().nullish().optional(),
-        feedType: z.enum(["custom", "all"]).optional(),
-      })
-      .parse({
+    const { limit, page, subredditName, feedType } = PaginationQuerySchema.extend({
+      subredditName: z.string().trim().min(1).max(21).nullish().optional(),
+      feedType: z.enum(["custom", "all"]).optional(),
+    }).parse({
         subredditName: url.searchParams.get("subredditName"),
-        limit: url.searchParams.get("limit"),
-        page: url.searchParams.get("page"),
+        limit: url.searchParams.get("limit") ?? undefined,
+        page: url.searchParams.get("page") ?? undefined,
         feedType: url.searchParams.get("feedType"),
       });
 
     let whereClause = {};
 
-    // If viewing a specific subreddit, filter by that
     if (subredditName) {
       whereClause = {
         subreddit: {
           name: subredditName,
         },
       };
-    } 
-    // If custom feed and logged in, show subscribed posts
-    else if (feedType === "custom" && session && joinedCommunitiesIds.length > 0) {
+    } else if (
+      feedType === "custom" &&
+      session &&
+      joinedCommunitiesIds.length > 0
+    ) {
       whereClause = {
         subreddit: {
           id: {
@@ -59,17 +60,18 @@ export async function GET(req: NextRequest) {
         },
       };
     }
-    // Otherwise (all feed or no subscriptions), show all posts
 
-    // Get distinct posts with all needed relations
     const posts = await prisma.post.findMany({
-      take: parseInt(limit),
-      skip: (parseInt(page) - 1) * parseInt(limit),
-      orderBy: [{
-        credibilityScore: 'desc'
-      }, {
-        createdAt: 'desc'
-      }],
+      take: limit,
+      skip: (page - 1) * limit,
+      orderBy: [
+        {
+          credibilityScore: "desc",
+        },
+        {
+          createdAt: "desc",
+        },
+      ],
       select: {
         id: true,
         title: true,
@@ -78,8 +80,8 @@ export async function GET(req: NextRequest) {
         updatedAt: true,
         authorId: true,
         subredditId: true,
-  credibilityScore: true,
-  researchDomain: true,
+        credibilityScore: true,
+        researchDomain: true,
         subreddit: true,
         votes: {
           select: {
@@ -89,18 +91,10 @@ export async function GET(req: NextRequest) {
             weight: true,
             votedAt: true,
             lastWeightUpdate: true,
-          }
+          },
         },
         author: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            image: true,
-            email: true,
-            emailVerified: true,
-            credibilityScore: true,
-          }
+          select: publicUserSelect,
         },
         comments: {
           select: {
@@ -108,17 +102,20 @@ export async function GET(req: NextRequest) {
             text: true,
             createdAt: true,
             authorId: true,
-          }
-        }
+          },
+        },
       },
       where: whereClause,
-      distinct: ['id']
+      distinct: ["id"],
     });
 
-    return new Response(JSON.stringify(posts));
+    return new Response(JSON.stringify(posts), {
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new Response(error.message, { status: 400 });
+    const validationResponse = validationErrorResponse(error);
+    if (validationResponse) {
+      return validationResponse;
     }
 
     return new Response("Could not fetch posts. Please try again later", {

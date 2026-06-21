@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import axios from "axios";
 
 import { UserAvatar } from "~/components/user-avatar";
 import { UserCredibility } from "~/components/credibility/user-credibility";
 import { PostCredibility } from "~/components/credibility/post-credibility";
-import { Separator } from "~/components/ui/separator";
-
-interface ProfilePageProps {
-  params: {
-    username: string;
-  };
-}
 
 interface UserProfile {
   id: string;
@@ -27,7 +21,6 @@ interface UserProfile {
     title: string;
     credibilityScore: number;
     researchDomain: string | null;
-    citationCount: number;
     createdAt: string;
   }>;
   _count: {
@@ -36,15 +29,22 @@ interface UserProfile {
   };
 }
 
-export default function ProfilePage({ params }: ProfilePageProps) {
+export default function ProfilePage() {
+  const params = useParams<{ username: string }>();
+  const username = params.username;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!username) {
+      setLoading(false);
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const { data } = await axios.get<UserProfile>(
-          `/api/profile?username=${params.username}`
+          `/api/profile?username=${username}`,
         );
         setProfile(data);
       } catch (error) {
@@ -55,7 +55,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     };
 
     fetchProfile();
-  }, [params.username]);
+  }, [username]);
 
   if (loading) {
     return <div>Loading...</div>;

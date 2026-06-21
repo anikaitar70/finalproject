@@ -6,13 +6,12 @@ import { getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
 
 interface SubredditPageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export default async function SubredditPage({ params }: SubredditPageProps) {
-  // Await the params and get the slug
-  const resolvedParams = await Promise.resolve(params);
-  const rawSlug = resolvedParams?.slug;
+  const resolvedParams = await params;
+  const rawSlug = resolvedParams.slug;
   
   if (!rawSlug || rawSlug === 'undefined' || typeof rawSlug !== 'string') {
     return notFound();

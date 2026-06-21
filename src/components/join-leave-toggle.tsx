@@ -25,7 +25,7 @@ export function JoinLeaveToggle({
   const { loginToast } = useCustomToasts();
   const router = useRouter();
 
-  const { mutate: subscribe, isLoading: isSubLoading } = useMutation({
+  const { mutate: subscribe, isPending: isSubLoading } = useMutation({
     mutationFn: async () => {
       const payload: SubscribeToSubredditPayload = {
         subredditId,
@@ -63,7 +63,7 @@ export function JoinLeaveToggle({
     },
   });
 
-  const { mutate: unsubscribe, isLoading: isUnsubLoading } = useMutation({
+  const { mutate: unsubscribe, isPending: isUnsubLoading } = useMutation({
     mutationFn: async () => {
       const payload: SubscribeToSubredditPayload = {
         subredditId,
