@@ -22,7 +22,8 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 log "database.migrate.start"
-su-exec nextjs:nodejs npx prisma migrate deploy --schema /app/prisma/schema.prisma \
+su-exec nextjs:nodejs node /app/node_modules/prisma/build/index.js migrate deploy \
+  --schema /app/prisma/schema.prisma \
   || log_fatal "database.migrate.failed"
 log "database.migrate.complete"
 
