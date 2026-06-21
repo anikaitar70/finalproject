@@ -25,8 +25,9 @@ RUN npm run build
 
 # Prepare standalone bundle with Prisma runtime files
 RUN cp -r prisma .next/standalone/prisma \
-  && cp -r node_modules/.prisma .next/standalone/node_modules/.prisma \
-  && cp -r node_modules/@prisma .next/standalone/node_modules/@prisma \
+  && mkdir -p .next/standalone/node_modules/@prisma .next/standalone/node_modules/.prisma \
+  && cp -r node_modules/@prisma/. .next/standalone/node_modules/@prisma/ \
+  && cp -r node_modules/.prisma/. .next/standalone/node_modules/.prisma/ \
   && cp -r node_modules/prisma .next/standalone/node_modules/prisma \
   && cp package.json .next/standalone/package.json \
   && mkdir -p .next/standalone/scripts \
