@@ -13,13 +13,21 @@ type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "Shreddit",
-  url: "https://shreddit.vercel.app",
-  description: "A Reddit clone built with Next.js and TypeScript.",
-  creator: "Peter Kibuchi",
-  authors: [{ name: "Peter Kibuchi", url: "https://www.peterkibuchi.com" }],
-  keywords: ["reddit", "clone", "nextjs", "typescript"],
+  name: "Cred Rank Net",
+  url: "https://crn.anikait.page",
+  description:
+    "A credibility-ranked research platform where scholars share takes, vote on ideas, and build reputation through evidence.",
+  creator: "Cred Rank Net",
+  authors: [{ name: "Cred Rank Net", url: "https://crn.anikait.page" }],
+  keywords: [
+    "research",
+    "credibility",
+    "scholars",
+    "science",
+    "nextjs",
+    "typescript",
+  ],
   links: {
-    github: "https://github.com/peterkibuchi/shreddit",
+    github: "https://github.com/anikaitar70/finalproject",
   },
 };

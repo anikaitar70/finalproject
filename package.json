@@ -1,5 +1,5 @@
 {
-  "name": "shreddit",
+  "name": "credranknet",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,9 @@
     "typecheck": "tsc --noEmit",
     "docker:build": "docker compose -f docker-compose.prod.yml build",
     "docker:up": "docker compose -f docker-compose.prod.yml up -d",
-    "docker:down": "docker compose -f docker-compose.prod.yml down"
+    "docker:down": "docker compose -f docker-compose.prod.yml down",
+    "seed": "tsx prisma/seed-full.ts",
+    "seed:production": "bash scripts/seed-production.sh"
   },
   "dependencies": {
     "@editorjs/editorjs": "^2.31.0",

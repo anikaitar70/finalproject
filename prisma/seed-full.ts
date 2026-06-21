@@ -1,205 +1,256 @@
-// prisma/seed-full.ts
 import { PrismaClient, VoteType } from "@prisma/client";
+
+import { recalculateCredibilityRanks } from "../src/lib/credibility-ranks";
+import { computeVoteWeight } from "../src/lib/credibility";
+import {
+  DEMO_USERS,
+  makeEditorContent,
+  POSTS_PER_USER,
+  serializeExpertise,
+  TAKE_TEMPLATES,
+} from "./seed-demo-data";
 
 const prisma = new PrismaClient();
 
-const scientificSubreddits = [
-  "Astrophysics",
-  "Neuroscience",
-  "QuantumComputing",
-  "MolecularBiology",
-  "ArtificialIntelligence",
-  "ClimateScience",
-  "Genetics",
-  "Robotics",
-  "TheoreticalPhysics",
-  "Biotechnology",
-  "DataScience",
-  "MaterialScience",
-  "Ecology",
-  "Pharmacology",
-  "CognitiveScience",
-];
+const DEMO_EMAIL_SUFFIX = "@credranknet.demo";
 
-// 100 users
-const userData = Array.from({ length: 100 }, (_, i) => ({
-  name: `Researcher${i + 1}`,
-  email: `researcher${i + 1}@example.com`,
-  username: `scientist${i + 1}`,
-  credibilityScore: Math.round(1 + Math.random() * 99),
-  expertise: scientificSubreddits[Math.floor(Math.random() * scientificSubreddits.length)],
-}));
+function shuffle<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function pickTakeTemplates(count: number, offset: number) {
+  const pool = [...TAKE_TEMPLATES];
+  const selected = [];
+  for (let i = 0; i < count; i++) {
+    selected.push(pool[(offset + i) % pool.length]!);
+  }
+  return selected;
+}
+
+async function clearDemoData() {
+  const demoUsers = await prisma.user.findMany({
+    where: { email: { endsWith: DEMO_EMAIL_SUFFIX } },
+    select: { id: true },
+  });
+
+  if (demoUsers.length === 0) {
+    return;
+  }
+
+  const demoUserIds = demoUsers.map((u) => u.id);
+
+  await prisma.commentVote.deleteMany({
+    where: { userId: { in: demoUserIds } },
+  });
+  await prisma.vote.deleteMany({ where: { userId: { in: demoUserIds } } });
+  await prisma.comment.deleteMany({ where: { authorId: { in: demoUserIds } } });
+  await prisma.post.deleteMany({ where: { authorId: { in: demoUserIds } } });
+  await prisma.subscription.deleteMany({
+    where: { userId: { in: demoUserIds } },
+  });
+
+  const demoSubreddits = await prisma.subreddit.findMany({
+    where: { creatorId: { in: demoUserIds } },
+    select: { id: true },
+  });
+
+  for (const subreddit of demoSubreddits) {
+    const remainingPosts = await prisma.post.count({
+      where: { subredditId: subreddit.id },
+    });
+    if (remainingPosts === 0) {
+      await prisma.subreddit.delete({ where: { id: subreddit.id } });
+    }
+  }
+
+  await prisma.user.deleteMany({ where: { id: { in: demoUserIds } } });
+}
 
 async function main() {
-  console.log("🌱 Starting seed...");
+  console.log("🌱 Seeding Cred Rank Net demo content...");
 
-  // 1) Upsert users (safe to re-run)
+  await clearDemoData();
+
+  const subredditNames = [
+    ...new Set(TAKE_TEMPLATES.map((t) => t.subreddit)),
+  ];
+
   const users = await Promise.all(
-    userData.map((u) =>
-      prisma.user.upsert({
-        where: { username: u.username },
-        update: {},
-        create: {
-          name: u.name,
-          email: u.email,
-          username: u.username,
-          credibilityScore: u.credibilityScore,
-          expertise: u.expertise,
+    DEMO_USERS.map((persona) =>
+      prisma.user.create({
+        data: {
+          name: persona.name,
+          username: persona.username,
+          email: `${persona.username}${DEMO_EMAIL_SUFFIX}`,
           emailVerified: new Date(),
+          image: `https://i.pravatar.cc/150?u=${persona.username}`,
+          credibilityScore: persona.credibilityScore,
+          expertise: serializeExpertise(persona.expertise),
         },
-      })
-    )
+      }),
+    ),
   );
-  console.log(`✅ Created or updated ${users.length} users`);
 
-  // 2) Upsert subreddits
-  const subreddits = await Promise.all(
-    scientificSubreddits.map(async (name) => {
-      const creator = users[Math.floor(Math.random() * users.length)];
-      return prisma.subreddit.upsert({
-        where: { name },
-        update: { creatorId: creator.id },
-        create: {
-          name,
-          creatorId: creator.id,
-        },
-      });
-    })
-  );
-  console.log(`✅ Created or updated ${subreddits.length} subreddits`);
+  console.log(`✅ Created ${users.length} demo users`);
 
-  // 3) Subscriptions (each user joins 2-5 subreddits)
+  const subredditRecords = new Map<string, { id: string; name: string }>();
+
+  for (const name of subredditNames) {
+    const creator = users[Math.floor(Math.random() * users.length)]!;
+    const subreddit = await prisma.subreddit.upsert({
+      where: { name },
+      update: {},
+      create: {
+        name,
+        creatorId: creator.id,
+      },
+    });
+    subredditRecords.set(name, subreddit);
+  }
+
+  console.log(`✅ Ensured ${subredditRecords.size} communities`);
+
   for (const user of users) {
-    const chosen = [...subreddits].sort(() => Math.random() - 0.5).slice(0, 2 + Math.floor(Math.random() * 4));
-    for (const sr of chosen) {
+    const joined = shuffle([...subredditRecords.values()]).slice(
+      0,
+      4 + Math.floor(Math.random() * 3),
+    );
+    for (const subreddit of joined) {
       await prisma.subscription
         .create({
-          data: { userId: user.id, subredditId: sr.id },
+          data: { userId: user.id, subredditId: subreddit.id },
         })
-        .catch((e: any) => {
-          if (e.code !== "P2002") throw e; // ignore duplicate subscription
-        });
+        .catch(() => undefined);
     }
   }
-  console.log("✅ Created user subscriptions");
 
-  // 4) Posts (2-4 per subreddit). No citationCount anywhere.
-  const posts: Array<{ id: string; title: string }> = [];
-  for (const sr of subreddits) {
-    const numPosts = 2 + Math.floor(Math.random() * 3); // 2-4
-    const subs = await prisma.subscription.findMany({ where: { subredditId: sr.id }, select: { userId: true } });
-    const subscriberIds = subs.map((s) => s.userId);
+  const posts: Array<{ id: string; authorId: string; title: string }> = [];
+  let templateOffset = 0;
 
-    for (let i = 0; i < numPosts; i++) {
-      const authorId = subscriberIds.length
-        ? subscriberIds[Math.floor(Math.random() * subscriberIds.length)]
-        : users[Math.floor(Math.random() * users.length)].id;
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i]!;
+    const takeCount = POSTS_PER_USER[i] ?? 7;
+    const takes = pickTakeTemplates(takeCount, templateOffset);
+    templateOffset += takeCount;
 
-      try {
-        const created = await prisma.post.create({
-          data: {
-            title: `Research in ${sr.name} #${i + 1}`,
-            content: { text: `This is a research post about ${sr.name}` },
-            authorId,
-            subredditId: sr.id,
-            researchDomain: sr.name,
-            credibilityScore: 0, // votes will change this
-          },
-        });
-        posts.push({ id: created.id, title: created.title });
-      } catch (e) {
-        console.error("Failed to create post:", sr.name, String((e as any)?.message || e));
-      }
+    for (let j = 0; j < takes.length; j++) {
+      const take = takes[j]!;
+      const subreddit = subredditRecords.get(take.subreddit);
+      if (!subreddit) continue;
+
+      const daysAgo = Math.floor(Math.random() * 45) + j;
+      const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+
+      const post = await prisma.post.create({
+        data: {
+          title: take.title,
+          content: makeEditorContent(take.paragraphs),
+          authorId: user.id,
+          subredditId: subreddit.id,
+          researchDomain: take.domain,
+          credibilityScore: 0,
+          createdAt,
+        },
+      });
+
+      posts.push({ id: post.id, authorId: user.id, title: post.title });
     }
   }
-  console.log(`✅ Created ${posts.length} posts`);
 
-  // 5) Comments (3-6 each)
+  console.log(`✅ Created ${posts.length} takes (avg ${(posts.length / users.length).toFixed(1)} per user)`);
+
+  const commentSnippets = [
+    "Strong framing. I'd push back slightly on the causal claim in paragraph two.",
+    "This matches what we're seeing in the literature—especially the policy angle.",
+    "Useful take. Would love to see citations on the longitudinal evidence.",
+    "Counterpoint: the implementation cost might outweigh the benefit at scale.",
+    "Agree on the diagnosis; the remedy needs more operational detail.",
+    "We ran a similar analysis last year and landed in the same ballpark.",
+  ];
+
   for (const post of posts) {
-    const numComments = 3 + Math.floor(Math.random() * 4);
-    for (let i = 0; i < numComments; i++) {
-      const commenter = users[Math.floor(Math.random() * users.length)];
-      try {
-        await prisma.comment.create({
-          data: {
-            text: `Comment ${i + 1} on ${post.title}`,
-            authorId: commenter.id,
-            postId: post.id,
-          },
-        });
-      } catch (e) {
-        console.error("Failed to create comment:", String((e as any)?.message || e));
-      }
+    const commentCount = 2 + Math.floor(Math.random() * 3);
+    for (let c = 0; c < commentCount; c++) {
+      const commenter = users[Math.floor(Math.random() * users.length)]!;
+      await prisma.comment.create({
+        data: {
+          text: commentSnippets[(c + post.title.length) % commentSnippets.length]!,
+          authorId: commenter.id,
+          postId: post.id,
+        },
+      });
     }
   }
+
   console.log("✅ Created comments");
 
-  // 6) Votes (each user votes on 5-10 random posts). Weight = user's credibilityScore / 100
+  for (const post of posts) {
+    const voters = shuffle(
+      users.filter((u) => u.id !== post.authorId),
+    ).slice(0, 8 + Math.floor(Math.random() * 7));
+
+    let scoreDelta = 0;
+
+    for (const voter of voters) {
+      const type = Math.random() > 0.28 ? VoteType.UP : VoteType.DOWN;
+      const weight = computeVoteWeight(voter.credibilityScore, 1);
+
+      await prisma.vote.create({
+        data: {
+          type,
+          userId: voter.id,
+          postId: post.id,
+          weight,
+        },
+      });
+
+      scoreDelta += type === VoteType.UP ? weight : -weight;
+    }
+
+    const normalized = Math.max(0, Math.min(100, 50 + scoreDelta * 2));
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { credibilityScore: normalized },
+    });
+  }
+
+  console.log("✅ Created cross-user votes");
+
   for (const user of users) {
-    const chosen = [...posts].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 6));
-    for (const p of chosen) {
-      const type = Math.random() > 0.3 ? VoteType.UP : VoteType.DOWN;
-      const weight = (user.credibilityScore ?? 1) / 100;
-      try {
-        await prisma.vote.create({
-          data: {
-            type,
-            userId: user.id,
-            postId: p.id,
-            weight,
-          },
-        });
-      } catch (e: any) {
-        // ignore duplicate vote error
-        if (e.code !== "P2002") console.error("Failed to create vote:", String(e?.message || e));
-      }
+    const authored = await prisma.post.findMany({
+      where: { authorId: user.id },
+      select: { credibilityScore: true },
+    });
 
-      const inc = type === VoteType.UP ? weight : -weight;
-      try {
-        await prisma.post.update({ where: { id: p.id }, data: { credibilityScore: { increment: inc } } });
-      } catch (e) {
-        console.error("Failed to update post credibility:", String((e as any)?.message || e));
-      }
-    }
+    if (authored.length === 0) continue;
+
+    const avgPostScore =
+      authored.reduce((sum, post) => sum + post.credibilityScore, 0) /
+      authored.length;
+
+    const blended =
+      user.credibilityScore * 0.35 + avgPostScore * 0.65;
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        credibilityScore: blended,
+        lastScoreUpdate: new Date(),
+      },
+    });
   }
-  console.log("✅ Created votes and updated post credibility scores");
 
-  // 7) Normalize post credibility 0-100
-  const allPosts = await prisma.post.findMany();
-  const scores = allPosts.map((p) => p.credibilityScore ?? 0);
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  for (const p of allPosts) {
-    const raw = p.credibilityScore ?? 0;
-    const norm = ((raw - min) / (max - min || 1)) * 100;
-    try {
-      await prisma.post.update({ where: { id: p.id }, data: { credibilityScore: norm } });
-    } catch (e) {
-      console.error("Failed to normalize post score:", p.id, String((e as any)?.message || e));
-    }
-  }
-  console.log("✅ Normalized post credibility scores");
+  await recalculateCredibilityRanks(prisma);
 
-  // 8) Update user credibility based on their posts (mix of original and post avg)
-  for (const user of users) {
-    try {
-      const authored = await prisma.post.findMany({ where: { authorId: user.id } });
-      if (!authored.length) continue;
-      const avg = authored.reduce((s, x) => s + (x.credibilityScore ?? 0), 0) / authored.length;
-      const final = (user.credibilityScore ?? 1) * 0.3 + avg * 0.7;
-      await prisma.user.update({ where: { id: user.id }, data: { credibilityScore: final } });
-    } catch (e) {
-      console.error("Failed to update user credibility:", user.username || user.id, String((e as any)?.message || e));
-    }
-  }
-  console.log("✅ Final user credibility updated");
-
-  console.log("🌱 Seed completed!");
+  console.log("✅ Updated credibility scores and ranks");
+  console.log(
+    `🎉 Demo seed complete — ${users.length} users, ${posts.length} takes`,
+  );
 }
 
 main()
-  .catch((e) => {
-    console.error("❌ Error in seed script:", e);
+  .catch((error) => {
+    console.error("❌ Seed failed:", error);
     process.exit(1);
   })
   .finally(async () => {

@@ -9,18 +9,18 @@ export function SignUp() {
       <div className="flex flex-col space-y-2 text-center">
         <Icons.logo className="mx-auto h-6 w-6" />
         <h1 className="text-2xl font-semibold tracking-tight">
-          Join Shreddit Today
+          Join Cred Rank Net
         </h1>
         <p className="mx-auto max-w-xs text-sm">
-          By continuing, you are setting up a Shreddit account and agree to our
-          Terms of Service and Privacy Policy.
+          By continuing, you are setting up a Cred Rank Net account and agree to
+          our Terms of Service and Privacy Policy.
         </p>
       </div>
 
       <UserAuthForm />
 
       <p className="px-8 text-center text-sm text-muted-foreground">
-        Already a Shredditor?{" "}
+        Already a member?{" "}
         <Link
           href="/login"
           className="hover:text-brand text-sm underline underline-offset-4"
