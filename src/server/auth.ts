@@ -87,7 +87,7 @@ async function syncAdminRole(userId: string, email: string | null | undefined) {
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  useSecureCookies: env.NEXTAUTH_URL.startsWith("https://"),
+  useSecureCookies: env.NEXTAUTH_URL?.startsWith("https://") ?? false,
   callbacks: {
     session: ({ session, token }) => ({
       ...session,
