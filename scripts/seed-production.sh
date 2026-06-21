@@ -15,6 +15,7 @@ docker run --rm \
   node:20-alpine sh -c "
     apk add --no-cache openssl libc6-compat &&
     npm ci --ignore-scripts &&
+    npx prisma generate &&
     npx tsx prisma/seed-full.ts
   "
 
